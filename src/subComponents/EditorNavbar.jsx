@@ -7,6 +7,8 @@ class EditorNavbar extends Component {
     this.state = { loading: true };
   }
 
+  //bruh
+
   render() {
     const LoadingCircle = <React.Fragment>circle loading</React.Fragment>;
     return (
