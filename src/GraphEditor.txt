@@ -1,0 +1,589 @@
+Here're the things I am not familiar with:
+
+d3force, what to render on canvas redraw, and tick()
+
+d3force:
+
+  const force = d3
+    .forceSimulation()
+    .force(
+      "link",
+      d3
+        .forceLink()
+        .id(d => d.id)
+        .distance(150)
+    )
+    .force("charge", d3.forceManyBody().strength(-500))
+    .force("x", d3.forceX(960 / 2))
+    .force("y", d3.forceY(500 / 2))
+    .on("tick", tick);
+
+tick:
+
+
+import React, { Component } from "react";
+import * as d3 from "d3";
+import { select, event } from "d3-selection";
+import "./GraphEditor.css";
+
+// set up svg for D3
+class GraphEditor extends Component {
+  constructor(props) {
+    super(props);
+    this.createCanvas = this.createCanvas.bind(this);
+    this.nodes = [
+      { id: 0, width: 150, height: 40, text: "hi" },
+      { id: 1, width: 150, height: 40, text: "yoe" },
+      { id: 2, width: 150, height: 40, text: "yeet" }
+    ];
+    this.lastNodeId = 2;
+    this.links = [
+      {
+        source: this.nodes[0],
+        target: this.nodes[1]
+      }
+    ];
+
+    // mouse event vars
+    this.selectedNode = null;
+    this.selectedLink = null;
+    this.mousedownLink = null;
+    this.mousedownNode = null;
+    this.mouseupNode = null;
+    this.dblClickCircle = null;
+    this.textBoxProp = {
+      x: 0,
+      y: 0,
+      height: 50,
+      width: 100,
+      visibility: "hidden",
+      text: ""
+    };
+  }
+
+  componentDidMount() {
+    this.createCanvas();
+  }
+  createCanvas() {
+    const colors = d3.scaleOrdinal(d3.schemeCategory10);
+    var that = this;
+
+    const force = d3
+      .forceSimulation()
+      .force(
+        "link",
+        d3
+          .forceLink()
+          .id(d => d.id)
+          .distance(150)
+      )
+      .force("charge", d3.forceManyBody().strength(-500))
+      .force("x", d3.forceX(960 / 2))
+      .force("y", d3.forceY(500 / 2))
+      .on("tick", tick);
+
+    const drag = d3
+      .drag()
+      .on("start", d => {
+        if (!d3.event.active) force.alphaTarget(0.3).restart();
+        console.log("start");
+        d.fx = d.x;
+        d.fy = d.y;
+      })
+      .on("drag", d => {
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
+        console.log("dragging");
+      })
+      .on("end", d => {
+        console.log("end");
+        if (!d3.event.active) force.alphaTarget(0);
+
+        d.fx = null;
+        d.fy = null;
+        resetMouseVars();
+      });
+
+    const svg = d3
+      .select("body")
+      .append("svg")
+
+      .attr("width", 960)
+      .attr("height", 500);
+
+    // define arrow markers for graph that.link
+    svg
+      .append("svg:defs")
+      .append("svg:marker")
+      .attr("id", "end-arrow")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 6)
+      .attr("markerWidth", 3)
+      .attr("markerHeight", 3)
+      .attr("orient", "auto")
+      .append("svg:path")
+      .attr("d", "M0,-5L10,0L0,5")
+      .attr("fill", "#000");
+
+    svg
+      .append("svg:defs")
+      .append("svg:marker")
+      .attr("id", "start-arrow")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 4)
+      .attr("markerWidth", 3)
+      .attr("markerHeight", 3)
+      .attr("orient", "auto")
+      .append("svg:path")
+      .attr("d", "M10,-5L0,0L10,5")
+      .attr("fill", "#000");
+
+    // line displayed when dragging new nodes
+    const dragLine = svg
+      .append("svg:path")
+      .attr("class", "link dragline hidden")
+      .attr("d", "M0,0L0,0")
+      .classed("hidden", true);
+
+    // handles to link and node element groups
+    let path = svg.append("svg:g").selectAll("path");
+    let circle = svg.append("svg:g").selectAll("g.node");
+
+    // app starts here
+    svg
+      .on("mousedown", mousedown)
+      .on("mousemove", mousemove)
+      .on("mouseup", mouseup);
+    d3.select(window)
+      .on("keydown", keydown)
+      .on("keyup", keyup);
+    restart();
+
+    function resetMouseVars() {
+      that.mousedownNode = null;
+      that.mouseupNode = null;
+      that.mousedownLink = null;
+    }
+
+    // update force layout (called automatically each iteration)
+    function tick() {
+      // draw directed edges with proper padding from node centers
+      path.attr("d", d => {
+        var dy = d.target.y - d.source.y;
+        var dx = d.target.x - d.source.x;
+
+        var theta = Math.atan2(-dy, dx);
+        theta += Math.PI;
+        let angle = (theta * Math.PI) / 180;
+        //  console.log(Math.tan(angle));
+        //weird right now
+        const shiftXBy = 0;
+
+        return `M${d.source.x + 50},${d.source.y + 20}L${d.target.x + 50},${
+          d.target.y
+        }`;
+
+        //  console.log("amount shift x", 30 * Math.cos(theta));
+        //console.log("amount shift y", 30 * Math.sin(theta));
+      });
+
+      circle.attr("transform", d => `translate(${d.x},${d.y})`);
+    }
+
+    // update graph (called when needed)
+    function restart() {
+      // path (link) group
+      console.log("restarted");
+
+      //JOIN DATA
+      path = path.data(that.links);
+
+      // update existing that.links
+      path
+        .classed("selected", d => d === that.selectedLink)
+        .style("marker-end", "url(#end-arrow)");
+
+      // EXIT
+      path.exit().remove();
+
+      // UPDATE
+      path = path
+        .enter()
+        .append("svg:path")
+        .attr("class", "link")
+        .classed("selected", d => d === that.selectedLink)
+        .style("marker-end", "url(#end-arrow)")
+        .on("mousedown", d => {
+          if (d3.event.ctrlKey) return;
+
+          // select link
+          that.mousedownLink = d;
+          that.selectedLink =
+            that.mousedownLink === that.selectedLink
+              ? null
+              : that.mousedownLink;
+          that.selectedNode = null;
+          restart();
+        })
+        .merge(path);
+
+      // JOIN
+      console.log(
+        "original circle",
+        circle,
+        "new selection",
+        d3.selectAll("g.node")
+      );
+      let g = circle
+        .data(that.nodes, function(d) {
+          return d.id;
+        })
+        .enter()
+        .append("svg:g")
+        .attr("class", "node");
+
+      g = g.call(drag).merge(g);
+
+      console.log("g is", g._groups);
+
+      var rect = g
+        .append("svg:rect")
+        .attr("class", "node")
+        .attr("rx", 6)
+        .attr("ry", 6)
+        .attr("width", function(d) {
+          console.log("rect updated");
+          return d.width;
+        })
+        .attr("height", function(d) {
+          return d.height;
+        })
+        .style("fill", d =>
+          d === that.selectedNode
+            ? d3
+                .rgb(colors(d.id))
+                .brighter()
+                .toString()
+            : colors(d.id)
+        )
+        .style("stroke", d =>
+          d3
+            .rgb(colors(d.id))
+            .darker()
+            .toString()
+        )
+        .on("dblclick", function(d) {
+          console.log("circle data", d);
+          // do the whole foreign object shit, then give the text to nodes
+          that.textBoxProp = {
+            ...that.textBoxProp,
+            visibility: "visible",
+            x: d.x - 15,
+            y: d.y - 15
+          };
+          that.dblClickCircle = d;
+          restart();
+          console.log(that.textBoxProp);
+        })
+        .on("mouseover", function(d) {
+          if (!that.mousedownNode || d === that.mousedownNode) return;
+          // enlarge target node
+          d3.select(this).attr("transform", "scale(1.1)");
+        })
+        .on("mouseout", function(d) {
+          if (!that.mousedownNode || d === that.mousedownNode) return;
+          // unenlarge target node
+          d3.select(this).attr("transform", "");
+        })
+        .on("mousedown", d => {
+          // select node
+          that.mousedownNode = d;
+          that.selectedNode =
+            that.mousedownNode === that.selectedNode
+              ? null
+              : that.mousedownNode;
+          that.selectedLink = null;
+
+          // reposition drag line
+
+          restart();
+        })
+        .on("mouseup", function(d) {
+          console.log("mouseupped");
+          if (!that.mousedownNode) return;
+
+          // needed by FF
+          dragLine.classed("hidden", true).style("marker-end", "");
+
+          // check for drag-to-self
+          that.mouseupNode = d;
+          if (that.mouseupNode === that.mousedownNode) {
+            resetMouseVars();
+            return;
+          }
+
+          // unenlarge target node
+          d3.select(this).attr("transform", "");
+
+          // add link to graph (update if exists)
+          // NB: that.links are strictly source < target; arrows separately specified by booleans
+          const isRight = that.mousedownNode.id < that.mouseupNode.id;
+          const source = that.mousedownNode;
+          const target = that.mouseupNode;
+
+          that.links.push({ source, target });
+
+          // select new link
+
+          that.selectedNode = null;
+          that.mousedownNode = null;
+          restart();
+        });
+
+      var text = g
+        .append("svg:text")
+        .text(function(d) {
+          console.log(d);
+          return d.text;
+        })
+        .attr("x", function(d) {
+          //(d.width + text node width) / 2
+          var bboxWidth = d3
+            .select(this)
+            .node()
+            .getBBox().width;
+
+          return (d.width - bboxWidth) / 2;
+        })
+        .attr("y", function(d) {
+          return 22.5;
+        });
+
+      console.log("text", text);
+
+      var textBox = svg
+        .append("foreignObject")
+        .attr("class", "textbox")
+        .attr("x", that.textBoxProp.x)
+        .attr("y", that.textBoxProp.y)
+        .attr("height", that.textBoxProp.height)
+        .attr("width", that.textBoxProp.width)
+        .attr("visibility", that.textBoxProp.visibility)
+        .attr("border", 0)
+        .append("xhtml:p")
+        .text(that.textBoxProp.text)
+        .attr("contentEditable", "true");
+
+      textBox
+        .on("blur", function(d) {
+          svg.selectAll("foreignObject").remove();
+          var textContent = this.textContent;
+          if (that.dblClickCircle)
+            that.nodes.map(eachNode => {
+              if (eachNode.id === that.dblClickCircle.id) {
+                eachNode.text = textContent;
+              }
+            });
+          let g = circle.data(that.nodes, d => d.id);
+          circle.exit().remove();
+          svg.selectAll("text").remove();
+
+          updateG(g);
+
+          that.dblClickCircle = null;
+          that.textBoxProp.visibility = "hidden";
+          restart();
+        })
+        .on("keydown", function(d) {
+          if (d3.event.keyCode === 13) this.blur();
+        });
+
+      textBox.node().focus();
+
+      circle = g.merge(circle);
+
+      // set the graph in motion
+      force
+        .nodes(that.nodes)
+        .force("link")
+        .links(that.links);
+
+      force.alphaTarget(0.3).restart();
+    }
+    function updateG(g) {
+      console.log("updated g, elements should reappend");
+      var text = g
+        .append("svg:text")
+        .each(function(d) {
+          var bboxWidth = d3
+            .select(this)
+            .node()
+            .getBBox().width;
+          console.log("bbox", bboxWidth, "rect width", d.width);
+          if (bboxWidth > d.width) {
+            d.width = bboxWidth;
+            updateG(g);
+            console.log(
+              "new d width",
+              d.width,
+              "look at next to see if the acutal nodes list is updated",
+              that.nodes
+            );
+          }
+        })
+        .attr("x", function(d) {
+          //(d.width + text node width) / 2
+
+          return (
+            (d.width -
+              d3
+                .select(this)
+                .node()
+                .getBBox().width) /
+            2
+          );
+        })
+        .attr("y", function(d) {
+          return 22.5;
+        })
+        .text(d => d.text);
+    }
+    function mousedown() {
+      // because :active only works in WebKit?
+      svg.classed("active", true);
+
+      if (
+        d3.event.ctrlKey ||
+        that.mousedownNode ||
+        that.mousedownLink ||
+        that.textBoxProp.visibility === "visible"
+      )
+        return;
+
+      // insert new node at point
+      const point = d3.mouse(this);
+      const node = {
+        id: that.nodes.length,
+        width: 150,
+        height: 40,
+        x: point[0],
+        y: point[1]
+      };
+      that.nodes.push(node);
+
+      restart();
+    }
+
+    function mousemove() {
+      if (!that.mousedownNode) return;
+
+      // update drag line
+      if (d3.event.ctrlKey) {
+        console.log("this is what we are updating, ", that.mousedownNode);
+        dragLine
+          .classed("hidden", false)
+          .style("marker-end", "url(#end-arrow)");
+
+        dragLine.attr(
+          "d",
+          `M${that.mousedownNode.x + that.mousedownNode.width / 2},${that
+            .mousedownNode.y +
+            that.mousedownNode.height / 2}L${d3.mouse(this)[0]},${
+            d3.mouse(this)[1]
+          }`
+        );
+      }
+    }
+
+    function mouseup() {
+      if (that.mousedownNode) {
+        // hide drag line
+        dragLine.classed("hidden", true).style("marker-end", "");
+      }
+
+      // because :active only works in WebKit?
+      svg.classed("active", false);
+
+      console.log("mouseuppedm, should reset vars");
+      // clear mouse event vars
+      resetMouseVars();
+      console.log("resetted var: ", that.mousedownNode);
+    }
+
+    function splicelinksForNode(node) {
+      const toSplice = that.links.filter(
+        l => l.source === node || l.target === node
+      );
+      for (const l of toSplice) {
+        that.links.splice(that.links.indexOf(l), 1);
+      }
+    }
+
+    // only respond once per keydown
+    let lastKeyDown = -1;
+
+    function keydown() {
+      if (lastKeyDown !== -1) return;
+      lastKeyDown = d3.event.keyCode;
+
+      if (!that.selectedNode && !that.selectedLink) return;
+
+      switch (d3.event.keyCode) {
+        case 8: // backspace
+        case 46: // delete
+          if (that.selectedNode) {
+            that.nodes.splice(that.nodes.indexOf(that.selectedNode), 1);
+            splicelinksForNode(that.selectedNode);
+          } else if (that.selectedLink) {
+            that.links.splice(that.links.indexOf(that.selectedLink), 1);
+          }
+          that.selectedLink = null;
+          that.selectedNode = null;
+          restart();
+          break;
+        case 66: // Bf
+          if (that.selectedLink) {
+            // set link direction to both left and right
+            that.selectedLink.left = true;
+            that.selectedLink.right = true;
+          }
+          restart();
+          break;
+        case 76: // L
+          if (that.selectedLink) {
+            // set link direction to left only
+            that.selectedLink.left = true;
+            that.selectedLink.right = false;
+          }
+          restart();
+          break;
+        case 82: // R
+          if (that.selectedNode) {
+            // toggle node reflexivity
+            that.selectedNode.reflexive = !that.selectedNode.reflexive;
+          } else if (that.selectedLink) {
+            // set link direction to right only
+            that.selectedLink.left = false;
+            that.selectedLink.right = true;
+          }
+          restart();
+          break;
+      }
+    }
+
+    function keyup() {
+      lastKeyDown = -1;
+
+      // ctrl
+      if (d3.event.keyCode === 17) {
+        svg.classed("ctrl", false);
+      }
+    }
+  }
+
+  render() {
+    return null;
+  }
+}
+
+export default GraphEditor;

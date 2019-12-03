@@ -1,0 +1,99 @@
+@import url("https://fonts.googleapis.com/css?family=Rubik:700&display=swap");
+* {
+  box-sizing: border-box;
+}
+
+.headlineButtonWrapper {
+  display: inline-block;
+}
+
+.headlineButton {
+  background: #fbfbfb;
+  color: #888;
+  font-size: 18px;
+  border: 0;
+  padding-top: 5px;
+  vertical-align: bottom;
+  height: 34px;
+  width: 36px;
+}
+
+.headlineButton:hover,
+.headlineButton:focus {
+  background: #f3f3f3;
+}
+
+div.textEditorContainer {
+  position: relative;
+  width: 24%;
+  height: 100vh;
+  float: left;
+  border-right: 1px solid black;
+}
+
+button.PageContainerButton {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  outline: none;
+  border: 0;
+  vertical-align: middle;
+  text-decoration: none;
+  font-size: inherit;
+  font-family: inherit;
+  margin-top: 1rem;
+}
+button.PageContainerButton {
+  font-weight: 600;
+  color: #382b22;
+  text-transform: uppercase;
+  padding: 1em 1em;
+  background: #fff0f0;
+  border: 2px solid #b18597;
+  border-radius: 0.75em;
+  transform-style: preserve-3d;
+  transition: transform 150ms cubic-bezier(0, 0, 0.58, 1),
+    background 150ms cubic-bezier(0, 0, 0.58, 1);
+  margin-left: 0.5em;
+}
+button.PageContainerButton::before {
+  position: absolute;
+  content: "";
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #f9c4d2;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px #b18597, 0 0.625em 0 0 #ffe3e2;
+  transform: translate3d(0, 0.75em, -1em);
+  transition: transform 150ms cubic-bezier(0, 0, 0.58, 1),
+    box-shadow 150ms cubic-bezier(0, 0, 0.58, 1);
+}
+button.PageContainerButton:hover {
+  background: #ffe9e9;
+  transform: translate(0, 0.25em);
+}
+button.PageContainerButton:hover::before {
+  box-shadow: 0 0 0 2px #b18597, 0 0.5em 0 0 #ffe3e2;
+  transform: translate3d(0, 0.5em, -1em);
+}
+button.PageContainerButton:active {
+  background: #ffe9e9;
+  transform: translate(0em, 0.75em);
+}
+button.PageContainerButton:active::before {
+  box-shadow: 0 0 0 2px #b18597, 0 0 #ffe3e2;
+  transform: translate3d(0, 0, -1em);
+}
+
+button.highlight {
+  border: 2px solid #d0401187;
+  background: #ffe900;
+}
+button.highlight::before {
+  background: #fff47e;
+  box-shadow: 0 0 0 2px #d0401187, 0 0.625em 0 0 #f6f1bc;
+}

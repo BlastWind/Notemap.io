@@ -1,0 +1,22 @@
+a function used so that these mapping can happen:
+
+"text1"<br>"text2"<br>"text3" to ["text1", "text2", "text3"]
+
+If many shift enter but nothing pressed:
+
+"text1"<br>"text2"<br>"text3<br>" to ["text1", "text2", "text3"]
+
+"text1"<br>"text2"<br>"text3<br><br><br><br>" to ["text1", "text2", "text3"]
+
+Double shift entered lines
+
+"text1"<br><br>"text2"<br>"text3<br><br><br><br>" to ["text1", "", "text2", "text3"]
+
+"text1"<br><br>"text2"<br>"text3<br><br><br>"text4"<br>" to ["text1", "", "text2", "text3", "", "", "text4"]
+
+Thus, a way to approach these seem to be:
+
+1) remove all <br> in the end
+2) for each "bundle" of <br>, append "" in between the <br>s if there is more than one 
+for example <br><br><br> turns into <br>""<br>""<br>; <br> is just <br>;
+split by <br> into text array, this should be good

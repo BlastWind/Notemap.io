@@ -1,0 +1,19 @@
+grapheditor
+
+ - initialize force, drag, svg
+ - append arrow markers
+ - append dragLine
+ - implement svg mouse events
+ - empty selection circle and paths
+
+ - on tick
+  - each path updates
+  - each circle updates by transform
+
+ - on restart (called on selects & deletes & appends)
+  - give path data
+  - remove old paths
+  - give path attributes, events
+  - same deal with circle
+  - same G that contains the circle will append text elements
+  - the text have the d's id as the text

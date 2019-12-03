@@ -1,0 +1,23 @@
+Bug #1:
+Description: undo impossible with current data structure because of direct reference to nodes
+Closer-look: this.nodes is currently linked with this.history, so changing an element in
+this.history will change this.nodes too. However, if they are not linked, weird stuff happens
+when redoing to the first step.
+Solution: Potential compromise can be creating a separate text array to store stuff
+this will be used when reverting histories
+Solution(continued): on store to history,
+
+Bug #2:
+Reproduce: add node, enter initla text, blur, enter more text, undo, add node, undo, redo
+Try solving by: changing instead of pushing txtHistory
+
+Bug #3:
+Description: add new node
+Desired effect: want 1) if new node created and blurred without input, store to history   (1 step)
+                     2) if new node created and blurred with input, store that to history (1 step)
+
+Solution: 1) Perhaps, play with store to history on addnewnode instead of blur first
+          2) condition in blur should be (if texts is different or node is new){...}
+             - to test if node is new, dblclick is not correct
+             - perhaps, set a variable on addNewNode to true, and if we keydown, that variable is false
+             - in blur, test if that variable is still true, if so, then we are in a new node at the end of blur, set that to false 

@@ -1,0 +1,126 @@
+svg {
+  background-color: #fff;
+  cursor: default;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+svg:not(.active):not(.ctrl) {
+  cursor: crosshair;
+}
+
+path.link {
+  fill: none;
+  stroke: #000;
+  stroke-width: 4px;
+  cursor: default;
+}
+
+svg:not(.active):not(.ctrl) path.link {
+  cursor: pointer;
+}
+
+path.link.selected {
+  stroke-dasharray: 10, 2;
+}
+
+path.link.dragline {
+  pointer-events: none;
+}
+
+path.link.hidden {
+  stroke-width: 0;
+}
+
+circle.node {
+  stroke-width: 1.5px;
+  cursor: pointer;
+}
+
+circle.node.reflexive {
+  stroke: #000 !important;
+  stroke-width: 2.5px;
+}
+
+text {
+  font: 12px sans-serif;
+  pointer-events: none;
+}
+
+text.id {
+  text-anchor: middle;
+  font-weight: bold;
+}
+
+input {
+  outline: 0;
+  border: 0;
+}
+
+foreignObject.textBox {
+  outline: 0 !important;
+  color: red;
+}
+
+foreignObject {
+}
+
+div.toolbar {
+  float: right;
+  padding: 10px;
+  border: 2px solid black;
+}
+
+img.picture {
+  padding: 10px;
+}
+
+.pictureHighlight {
+  padding: 10px;
+}
+
+.GraphEditorContainer {
+  float: left;
+  width: 75%;
+}
+
+.circleDiv {
+  position: absolute;
+  top: 125px;
+  right: 15px;
+  width: 50px;
+  height: 50px;
+  cursor: pointer;
+  background-color: blue;
+  border-radius: 50%;
+  opacity: 0.5;
+  background-color: grey;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.circleDiv.colored {
+  opacity: 1;
+  background: rgb(161, 140, 209);
+  background: linear-gradient(
+    90deg,
+    rgba(161, 140, 209, 1) 0%,
+    rgba(251, 194, 235, 1) 100%
+  );
+}
+.colorPicker {
+  position: absolute;
+  top: 125px;
+  right: 75px;
+  width: 50px;
+  height: 100px;
+  border: 3px solid black;
+  opacity: 0;
+  transition: opacity 0.1s ease-in-out;
+}
+.colorPicker.show {
+  opacity: 1;
+  transition: opacity 0.25s ease-in-out;
+}
