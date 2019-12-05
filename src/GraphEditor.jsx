@@ -21,11 +21,12 @@ const initialNodes = [
     id: 0,
     width: 50,
     height: 40,
-    text: ["here"],
+    text: ["here", "", "line 3"],
     opacity: 1,
     x: 750,
     y: 200,
-    fill: d3.rgb(colors(0))
+    fill: d3.rgb(colors(0)),
+    style: ""
   },
   {
     id: 1,
@@ -35,7 +36,8 @@ const initialNodes = [
     opacity: 1,
     x: 600,
     y: 200,
-    fill: d3.rgb(colors(1))
+    fill: d3.rgb(colors(1)),
+    style: "bold italic highlight"
   },
   {
     id: 2,
@@ -44,7 +46,19 @@ const initialNodes = [
     text: ["hi"],
     x: 300,
     y: 200,
-    fill: d3.rgb(colors(2))
+    fill: d3.rgb(colors(2)),
+    style: "italic"
+  },
+  {
+    id: 3,
+    width: 50,
+    height: 40,
+    text: ["bruh", "bruh2"],
+    opacity: 1,
+    x: 600,
+    y: 200,
+    fill: d3.rgb(colors(4)),
+    style: "bold italic highlight"
   }
 ];
 const initialLinks = [
@@ -107,7 +121,6 @@ class GraphEditor extends Component {
   }
 
   storeToHistory() {
-    console.log("stored");
     this.history = this.history.slice(0, this.historyStep + 1);
 
     var newStep = {
@@ -126,7 +139,6 @@ class GraphEditor extends Component {
     this.history = this.history.concat([newStep]);
 
     this.historyStep += 1;
-    console.log(this.history);
   }
 
   componentDidMount() {
@@ -153,7 +165,15 @@ class GraphEditor extends Component {
 
     that.force = d3
       .forceSimulation()
-      .force("link", d3.forceLink().id(d => d.id))
+      .force(
+        "link",
+        d3
+          .forceLink()
+          .id(d => d.id)
+          .distance(function(d) {
+            return 500;
+          })
+      )
       .force("charge", d3.forceManyBody().strength(-5))
       //.force("x", d3.forceX())
       //.force("y", d3.forceY())
@@ -350,6 +370,7 @@ class GraphEditor extends Component {
 
       d3.selectAll("rect.node").remove();
       d3.selectAll("text").remove();
+      d3.selectAll("g.textContainer").remove();
       //
       //JOIN DATA
       path = path.data(that.links);
@@ -413,10 +434,26 @@ class GraphEditor extends Component {
           //we get access to widthArray
           var nwords = d.text.length;
           for (var i = 0; i < nwords; i++) {
-            var tspan = d3
-              .select(this)
+            var rectAndTextPair = d3.select(this).append("g");
+            if (
+              d.style.includes("highlight") &&
+              d.text[i].trim().length !== 0
+            ) {
+              rectAndTextPair.append("rect").attrs({
+                width: 10,
+                height: 15.5,
+                y: i * 15 - 12,
+                fill: "yellow"
+              });
+            }
+            var tspan = rectAndTextPair
               .append("text")
-              .style("font-weight", "bold")
+              .style("font-style", function(d) {
+                if (d.style.includes("italic")) return "italic";
+              })
+              .style("font-weight", function(d) {
+                if (d.style.includes("bold")) return "bold";
+              })
               .html(function(d) {
                 var a = d.text[i];
                 while (a.includes(" ")) {
@@ -425,11 +462,19 @@ class GraphEditor extends Component {
                 return a;
               });
 
-            tspan.call(() => {
+            tspan.call(eachTspan => {
+              //maybe there is a index, select the rect in the parent container
+              var highlightRect = d3
+                .select(eachTspan.node().parentNode)
+                .select("rect");
+
               var bboxWidth = d3
                 .select(this)
                 .node()
                 .getBBox().width;
+              if (highlightRect) {
+                highlightRect.attr("width", bboxWidth);
+              }
 
               that.textInputCircle = {
                 ...that.textInputCircle,
@@ -619,15 +664,6 @@ class GraphEditor extends Component {
             paragraph.node().innerHTML = "";
             paragraph.node().innerHTML = val;
           }, 1);
-
-          //    restart();
-
-          console.log(
-            paragraph.node().selectionStart,
-            paragraph.node().selectionEnd
-          );
-
-          //restart();
         })
         .on("mouseover", function(d) {
           if (!d3.event.ctrlKey || !that.linkModeActivated) return;
@@ -642,7 +678,6 @@ class GraphEditor extends Component {
         })
         .on("mousedown", d => {
           // select node
-          console.log("mouse downed");
           that.mousedownNode = d;
           that.selectedNode =
             that.mousedownNode === that.selectedNode
@@ -659,12 +694,10 @@ class GraphEditor extends Component {
           });
 
           if (that.selectedNode) {
-            console.log("add");
             //if there is a mousedownNode, maintain colored
             const circleDiv = document.getElementById("circleDiv");
             circleDiv.classList.add("colored");
           } else {
-            console.log("remove?");
             //if there isn't, set to nothin
             //also remove colorPicker
             const circleDiv = document.getElementById("circleDiv");
@@ -722,7 +755,10 @@ class GraphEditor extends Component {
         .nodes(that.nodes)
         .force("link")
         .links(that.links)
-        .distance(250);
+        .distance(function(d) {
+          console.log("d", d);
+          return 500;
+        });
 
       that.force.alphaTarget(0.3).restart();
     }
@@ -746,7 +782,8 @@ class GraphEditor extends Component {
           x: point[0],
           y: point[1],
           text: [""],
-          fill: d3.rgb(colors(that.nodes.length))
+          fill: d3.rgb(colors(that.nodes.length)),
+          style: ""
         };
         that.nodes.push(node);
         //storeToHistory();
@@ -838,14 +875,10 @@ class GraphEditor extends Component {
               that.history[that.historyStep].nodeToChangeID !== -1 &&
               that.history[that.historyStep].fills.redoTo
             ) {
-              console.log("redoing color");
-
               that.nodes.map(eachNode => {
                 if (
                   eachNode.id === that.history[that.historyStep].nodeToChangeID
                 ) {
-                  console.log(that.history[that.historyStep].fills.undoTo);
-
                   eachNode.fill = that.history[that.historyStep].fills.redoTo;
                 }
               });
@@ -890,8 +923,6 @@ class GraphEditor extends Component {
                   eachNode.id ===
                   that.history[that.historyStep + 1].nodeToChangeID
                 ) {
-                  console.log(that.history[that.historyStep + 1].fills.undoTo);
-
                   eachNode.fill =
                     that.history[that.historyStep + 1].fills.undoTo;
                 }
@@ -912,7 +943,6 @@ class GraphEditor extends Component {
       switch (d3.event.keyCode) {
         case 8: // backspace
         case 46: // delete
-          console.log(that.selectedNode);
           if (that.selectedNode) {
             that.nodes.splice(that.nodes.indexOf(that.selectedNode), 1);
             splicelinksForNode(that.selectedNode);
@@ -972,32 +1002,29 @@ class GraphEditor extends Component {
     };
     this.nodes.push(node);
 
-    console.log(this.nodes);
-
     this.storeToHistory();
     this.previousTransform = d3.select("g.gContainer").attr("transform");
     this.updateEntire();
   };
 
   toggleManual = () => {
-    console.log("toggle manual");
     this.setState({ showManual: !this.state.showManual });
   };
 
-  setColor = () => {
+  setColor = eachColor => {
     this.nodes.map(eachNode => {
       if (eachNode.id === this.selectedNode.id) {
         this.nodeToChange = eachNode;
+        console.log(d3.rgb(colors(0)));
         //console.log(d3.rgb(colors(8)));
         this.originalFill = eachNode.fill;
-        eachNode.fill = d3.rgb(colors(8));
-        this.newFill = d3.rgb(colors(8));
+        eachNode.fill = d3.rgb(colors(eachColor));
+        this.newFill = d3.rgb(colors(eachColor));
       }
     });
 
     if (JSON.stringify(this.originalFill) !== JSON.stringify(this.newFill)) {
       //console.log("starttext");
-      console.log(this.originalFill, this.newFill);
       this.storeToHistory();
     }
 
@@ -1005,7 +1032,21 @@ class GraphEditor extends Component {
     this.updateEntire();
     this.nodeToChange = null;
   };
+
+  setStyle = style => {
+    this.nodes.map(eachNode => {
+      if (eachNode.id === this.selectedNode.id) {
+        if (eachNode.style.includes(style)) {
+          eachNode.style = eachNode.style.replace(style, "");
+        } else {
+          eachNode.style += style;
+        }
+      }
+    });
+    this.updateEntire();
+  };
   render() {
+    const colorOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     return (
       <React.Fragment>
         <EditorNavbar />
@@ -1032,16 +1073,50 @@ class GraphEditor extends Component {
               onClick={() => {
                 const circleDiv = document.getElementById("circleDiv");
                 if (circleDiv.className.includes("colored")) {
-                  console.log("show little color picker tool ");
-
                   const colorPicker = document.getElementById("colorPicker");
                   colorPicker.classList.toggle("show");
                 }
               }}
             ></div>
             <div id="colorPicker" className="colorPicker">
-              <a onClick={this.setColor}>set to red</a>
-              <a onClick={this.setTextStyle}>set to red</a>
+              {colorOptions.map(eachColor => {
+                return (
+                  <div
+                    style={{
+                      width: "30px",
+                      height: "15px",
+                      background: d3.rgb(colors(eachColor)),
+                      cursor: "pointer"
+                    }}
+                    onClick={() => {
+                      this.setColor(eachColor);
+                    }}
+                  ></div>
+                );
+              })}
+              <a
+                onClick={() => {
+                  this.setStyle("bold");
+                }}
+              >
+                BOLD
+              </a>
+              <br />
+              <a
+                onClick={() => {
+                  this.setStyle("highlight");
+                }}
+              >
+                HIGHLIGHT
+              </a>
+              <br />
+              <a
+                onClick={() => {
+                  this.setStyle("italic");
+                }}
+              >
+                ITALIC
+              </a>
             </div>
           </React.Fragment>
         </div>
