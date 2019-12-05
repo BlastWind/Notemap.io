@@ -1,7 +1,11 @@
 features left to implement:
 
-Colorpicker needs to include bold, different colors, italic, and highlight
+Colorpicker needs to include bold, different colors, italic, and highlight (completed)
 
-When text to node, the translation should pick on the whether or not it was B, I, H...
+When text to node, the translation should pick on the whether or not it was B, I, H... (completed)
 
 Double click messes with colorpicker appearance, solve that.
+
+A node is created with: ctrl + click
+
+figure out a way to differentiate this from ctrl + drag release

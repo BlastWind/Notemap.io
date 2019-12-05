@@ -1,18 +1,13 @@
 import React, { Component } from "react";
-import * as d3 from "d3";
-import { select, event } from "d3-selection";
-import "./GraphEditor.css";
-import "d3-selection-multi";
-import link from "./svgs/network.svg";
-import link_purple from "./svgs/network_purple.svg";
-import add from "./svgs/thin-add-button.svg";
-import focus from "./svgs/crosshair.svg";
-import manual from "./svgs/manual.svg";
-
 import Manual from "./Manual.jsx";
 import PageContainer from "./PageContainer.js";
-
 import EditorNavbar from "./subComponents/EditorNavbar.jsx";
+import * as d3 from "d3";
+import { select, event } from "d3-selection";
+import "d3-selection-multi";
+import "./GraphEditor.css";
+
+import manual from "./svgs/manual.svg";
 
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
@@ -81,16 +76,12 @@ class GraphEditor extends Component {
 
     this.nodes = initialNodes;
     this.links = initialLinks;
-    this.lastNodeId = 2;
 
     this.selectedNode = null;
     this.selectedLink = null;
     this.mousedownLink = null;
     this.mousedownNode = null;
     this.mouseupNode = null;
-
-    this.linkModeActivated = false;
-    this.isCentering = false;
 
     this.force = null;
     this.startText = null;
@@ -106,6 +97,8 @@ class GraphEditor extends Component {
     this.txtHistory = [];
     this.historyStep = 0;
     this.previousTransform = null;
+
+    this.isDragging = false;
   }
 
   updateEntire() {
@@ -150,19 +143,6 @@ class GraphEditor extends Component {
       "GraphEditorContainer"
     );
 
-    //d3.select("#addPic").on("click", addNewNode);
-    d3.select("#focusPic").on("click", huh);
-    d3.select("#linkPic").on("click", function() {
-      var current = d3.select(this);
-      if (current.attr("src") === link_purple) {
-        that.linkModeActivated = false;
-        current.attr("src", link);
-      } else {
-        current.attr("src", link_purple);
-        that.linkModeActivated = true;
-      }
-    });
-
     that.force = d3
       .forceSimulation()
       .force(
@@ -171,7 +151,7 @@ class GraphEditor extends Component {
           .forceLink()
           .id(d => d.id)
           .distance(function(d) {
-            return 500;
+            return 250;
           })
       )
       .force("charge", d3.forceManyBody().strength(-5))
@@ -218,50 +198,24 @@ class GraphEditor extends Component {
 
     const drag = d3
       .drag()
-      .filter(function() {
-        if (that.linkModeActivated) {
-          svg
-            .on(".zoom", null)
-            .on("mousedown.zoom", null)
-            .on("touchstart.zoom", null)
-            .on("touchmove.zoom", null)
-            .on("touchend.zoom", null);
-        }
 
-        return !that.linkModeActivated && !d3.event.ctrlKey;
-      })
       .on("start", d => {
         if (!d3.event.active) that.force.alphaTarget(0.3).restart();
 
         d.fx = d.x;
         d.fy = d.y;
+        that.isDragging = true;
       })
       .on("drag", d => {
-        if (!that.linkModeActivated) {
-          d.fx = d3.event.x;
-          d.fy = d3.event.y;
-        } else {
-          dragLine
-            .classed("hidden", false)
-            .style("marker-end", "url(#end-arrow)");
-          dragLine.attr(
-            "d",
-            `M${that.mousedownNode.x + that.mousedownNode.width / 2},${that
-              .mousedownNode.y +
-              that.mousedownNode.height / 2}L${d3.mouse(svg.node())[0]},${
-              d3.mouse(svg.node())[1]
-            }`
-          );
-        }
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
       })
       .on("end", d => {
-        if (that.linkModeActivated) {
-          dragLine.classed("hidden", true);
-        }
         if (!d3.event.active) that.force.alphaTarget(0);
 
         d.fx = null;
         d.fy = null;
+        that.isDragging = false;
         resetMouseVars();
       });
     var container = svg
@@ -290,7 +244,8 @@ class GraphEditor extends Component {
     let circle = container
       .append("svg:g")
       .selectAll("g")
-      .attr("class", "rectTextGroup");
+      .attr("class", "rectTextGroup")
+      .on("mousedown", function(d) {});
     let textBox = container.append("foreignObject");
     // app starts here
     var zoom = d3.zoom().on("zoom", function() {
@@ -326,7 +281,7 @@ class GraphEditor extends Component {
 
     function resetMouseVars() {
       that.mousedownNode = null;
-      that.mouseupNode = null;
+      //that.mouseupNode = null;
       that.mousedownLink = null;
     }
     // update force layout (called automatically each iteration)
@@ -391,7 +346,7 @@ class GraphEditor extends Component {
         .classed("selected", d => d === that.selectedLink)
         .style("marker-end", "url(#end-arrow)")
         .on("mousedown", d => {
-          if (d3.event.ctrlKey || that.linkModeActivated) return;
+          if (d3.event.ctrlKey) return;
 
           // select link
           that.mousedownLink = d;
@@ -419,7 +374,73 @@ class GraphEditor extends Component {
 
       var rect = g.append("svg:rect");
 
-      var textContainers = g.append("svg:g").attr("class", "textContainer");
+      var textContainers = g
+        .append("svg:g")
+        .attr("class", "textContainer")
+        .on("mousedown", d => {
+          // select node
+          that.mousedownNode = d;
+          that.selectedNode =
+            that.mousedownNode === that.selectedNode
+              ? null
+              : that.mousedownNode;
+          that.selectedLink = null;
+
+          rect.style("fill", function(d) {
+            if (d === that.selectedNode) {
+              return d.fill.brighter().toString();
+            } else {
+              return d.fill;
+            }
+          });
+
+          if (that.selectedNode) {
+            const circleDiv = document.getElementById("circleDiv");
+            circleDiv.classList.add("colored");
+          } else {
+            const circleDiv = document.getElementById("circleDiv");
+            circleDiv.classList.remove("colored");
+            document.getElementById("colorPicker").classList.remove("show");
+          }
+          //can't restart, if restart dblclick can't be detected
+          //restart();
+        })
+        .on("mouseup", function(d) {
+          if (!that.mousedownNode) return;
+
+          svg.call(
+            d3
+              .zoom()
+              .scaleExtent([0.1, 4])
+              .on("zoom", function() {
+                container.attr("transform", d3.event.transform);
+              })
+          );
+          // needed by FF
+          dragLine.classed("hidden", true).style("marker-end", "");
+
+          that.mouseupNode = d;
+          if (that.mouseupNode === that.mousedownNode) {
+            that.mousedownNode = null;
+            that.selectedNode = null;
+            return;
+          }
+
+          d3.select(this).attr("transform", "");
+
+          const source = that.mousedownNode;
+          const target = that.mouseupNode;
+
+          that.links.push({ source, target });
+
+          that.storeToHistory();
+
+          that.selectedNode = null;
+          that.mousedownNode = null;
+          console.log("mouseup node in mouseup()", that.mouseupNode);
+
+          restart();
+        });
 
       textContainers
 
@@ -535,7 +556,6 @@ class GraphEditor extends Component {
           } else return d.fill;
         })
         .style("stroke", "black")
-
         .on("dblclick", function(d) {
           that.isTyping = true;
           that.selectedNode = null;
@@ -582,7 +602,7 @@ class GraphEditor extends Component {
               return html;
             })
             .attr("contentEditable", "true")
-            //warning: changing to window.innerWidth to prevent some dude spamming shift enter or extra long node?
+            .attr("spellcheck", false)
             .attr("width", window.innerWidth / 2)
             .style("width", window.innerWidth / 2)
             .style("outline", 0)
@@ -666,10 +686,10 @@ class GraphEditor extends Component {
           }, 1);
         })
         .on("mouseover", function(d) {
-          if (!d3.event.ctrlKey || !that.linkModeActivated) return;
+          if (!d3.event.ctrlKey) return;
           if (!that.mousedownNode || d === that.mousedownNode) return;
           // enlarge target node
-          d3.select(this).attr("transform", "scale(1.1)");
+          d3.select(this).attr("transform", "scale(1.1) translate(-50, 0)");
         })
         .on("mouseout", function(d) {
           if (!that.mousedownNode || d === that.mousedownNode) return;
@@ -694,12 +714,9 @@ class GraphEditor extends Component {
           });
 
           if (that.selectedNode) {
-            //if there is a mousedownNode, maintain colored
             const circleDiv = document.getElementById("circleDiv");
             circleDiv.classList.add("colored");
           } else {
-            //if there isn't, set to nothin
-            //also remove colorPicker
             const circleDiv = document.getElementById("circleDiv");
             circleDiv.classList.remove("colored");
             document.getElementById("colorPicker").classList.remove("show");
@@ -721,29 +738,25 @@ class GraphEditor extends Component {
           // needed by FF
           dragLine.classed("hidden", true).style("marker-end", "");
 
-          // check for drag-to-self
           that.mouseupNode = d;
           if (that.mouseupNode === that.mousedownNode) {
-            resetMouseVars();
+            that.mousedownNode = null;
+            that.selectedNode = null;
             return;
           }
 
-          // unenlarge target node
           d3.select(this).attr("transform", "");
 
-          // add link to graph (update if exists)
-          // NB: that.links are strictly source < target; arrows separately specified by booleans
-          const isRight = that.mousedownNode.id < that.mouseupNode.id;
           const source = that.mousedownNode;
           const target = that.mouseupNode;
 
           that.links.push({ source, target });
 
           that.storeToHistory();
-          // select new link
 
           that.selectedNode = null;
           that.mousedownNode = null;
+          console.log("mouseup node in mouseup()", that.mouseupNode);
 
           restart();
         });
@@ -756,20 +769,20 @@ class GraphEditor extends Component {
         .force("link")
         .links(that.links)
         .distance(function(d) {
-          console.log("d", d);
-          return 500;
+          return 250;
         });
 
       that.force.alphaTarget(0.3).restart();
     }
 
+    //sensing svg click
     function click() {
-      //console.log(dragLine.classed("hidden"));
-      if (d3.event.ctrlKey) {
-        // because :active only works in WebKit?
+      console.log("svg click", "mouseupNode", that.mouseupNode);
+      if (d3.event.ctrlKey && that.mouseupNode) {
+        console.log(that.isDragging);
+
         svg.classed("active", true);
 
-        // insert new node at point
         var point = d3.mouse(this);
 
         var transform = d3.zoomTransform(container.node());
@@ -786,9 +799,6 @@ class GraphEditor extends Component {
           style: ""
         };
         that.nodes.push(node);
-        //storeToHistory();
-        //
-        //looks like: translate(100,50) scale(0.5)
 
         that.previousTransform = container.attr("transform");
         that.updateEntire();
@@ -802,11 +812,13 @@ class GraphEditor extends Component {
     }
     function huh() {}
     function mousedown() {}
+    //sensing svg mousemove (move dragLine)
     function mousemove() {
+      that.mouseupNode = null;
       if (!that.mousedownNode) return;
 
       // update drag line
-      if (d3.event.ctrlKey || that.linkModeActivated) {
+      if (d3.event.ctrlKey) {
         dragLine
           .classed("hidden", false)
           .style("marker-end", "url(#end-arrow)");
@@ -822,7 +834,10 @@ class GraphEditor extends Component {
       }
     }
 
+    //sensing svg mouseup (undraws link)
     function mouseup() {
+      //console.log("svg mouseup", "mousedown node", that.mousedownNode);
+
       if (that.mousedownNode) {
         // hide drag line
         dragLine.classed("hidden", true).style("marker-end", "");
@@ -934,8 +949,6 @@ class GraphEditor extends Component {
             restart();
           }
         }
-
-        d3.select("#linkPic").attr("src", link_purple);
       }
       //
       if (!that.selectedNode && !that.selectedLink) return;
@@ -962,8 +975,8 @@ class GraphEditor extends Component {
       //lastKeyDown = -1;
 
       // ctrl
-      if (d3.event.keyCode === 17 && !that.linkModeActivated) {
-        d3.select("#linkPic").attr("src", link);
+      if (d3.event.keyCode === 17) {
+        //d3.select("#linkPic").attr("src", link);
       }
     }
 
@@ -974,7 +987,7 @@ class GraphEditor extends Component {
     }
   }
 
-  onTxtToNode = txt => {
+  onTxtToNode = (txt, style) => {
     var point = [
       d3
         .select("svg")
@@ -998,7 +1011,8 @@ class GraphEditor extends Component {
       text: txt.split("\n"),
       x: point[0],
       y: point[1],
-      fill: d3.rgb(colors(this.nodes.length))
+      fill: d3.rgb(colors(this.nodes.length)),
+      style: style
     };
     this.nodes.push(node);
 

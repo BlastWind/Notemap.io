@@ -115,13 +115,22 @@ class PageContainer extends React.Component {
     }
     let editorState = this.state.editorState;
 
-    var hi = _getTextSelection(
+    var text = _getTextSelection(
       editorState.getCurrentContent(),
       editorState.getSelection(),
       null
     );
-    if (hi) {
-      this.props.onTxtToNode(hi);
+
+    var style = "";
+    if (this.state.editorState.getCurrentInlineStyle().has("BOLD"))
+      style += "bold";
+    if (this.state.editorState.getCurrentInlineStyle().has("HIGHLIGHT"))
+      style += "highlight";
+    if (this.state.editorState.getCurrentInlineStyle().has("ITALIC"))
+      style += "italic";
+
+    if (text) {
+      this.props.onTxtToNode(text, style);
     }
   };
 
