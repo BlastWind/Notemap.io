@@ -777,8 +777,7 @@ class GraphEditor extends Component {
 
     //sensing svg click
     function click() {
-      console.log("svg click", "mouseupNode", that.mouseupNode);
-      if (d3.event.ctrlKey && that.mouseupNode) {
+      if (d3.event.ctrlKey && !that.mousedownNode) {
         console.log(that.isDragging);
 
         svg.classed("active", true);
@@ -809,6 +808,7 @@ class GraphEditor extends Component {
           })
           .dispatch("dblclick");
       }
+      resetMouseVars();
     }
     function huh() {}
     function mousedown() {}
@@ -845,8 +845,6 @@ class GraphEditor extends Component {
 
       // because :active only works in WebKit?
       svg.classed("active", false);
-
-      resetMouseVars();
     }
 
     function splicelinksForNode(node) {
