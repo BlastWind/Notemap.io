@@ -1,4 +1,4 @@
-# DEMO
+# Early DEMO 
 live at https://blastwind.github.io/Notemap.io/!
 ![](header.png)
 
