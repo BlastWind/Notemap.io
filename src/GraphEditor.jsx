@@ -48,7 +48,7 @@ const initialNodes = [
     id: 3,
     width: 50,
     height: 40,
-    text: ["bruh", "bruh2"],
+    text: ["test", "test2"],
     opacity: 1,
     x: 600,
     y: 200,
@@ -557,6 +557,9 @@ class GraphEditor extends Component {
         })
         .style("stroke", "black")
         .on("dblclick", function(d) {
+          const circleDiv = document.getElementById("circleDiv");
+          circleDiv.classList.remove("colored");
+          document.getElementById("colorPicker").classList.remove("show");
           that.isTyping = true;
           that.selectedNode = null;
           resetMouseVars();
@@ -689,7 +692,7 @@ class GraphEditor extends Component {
           if (!d3.event.ctrlKey) return;
           if (!that.mousedownNode || d === that.mousedownNode) return;
           // enlarge target node
-          d3.select(this).attr("transform", "scale(1.1) translate(-50, 0)");
+          //d3.select(this).attr("transform", "scale(1.1) translate(-50, 0)");
         })
         .on("mouseout", function(d) {
           if (!that.mousedownNode || d === that.mousedownNode) return;
@@ -777,8 +780,7 @@ class GraphEditor extends Component {
 
     //sensing svg click
     function click() {
-      console.log("svg click", "mouseupNode", that.mouseupNode);
-      if (d3.event.ctrlKey && that.mouseupNode) {
+      if (d3.event.ctrlKey && !that.mousedownNode) {
         console.log(that.isDragging);
 
         svg.classed("active", true);
@@ -809,6 +811,7 @@ class GraphEditor extends Component {
           })
           .dispatch("dblclick");
       }
+      resetMouseVars();
     }
     function huh() {}
     function mousedown() {}
@@ -845,8 +848,6 @@ class GraphEditor extends Component {
 
       // because :active only works in WebKit?
       svg.classed("active", false);
-
-      resetMouseVars();
     }
 
     function splicelinksForNode(node) {
@@ -1026,6 +1027,21 @@ class GraphEditor extends Component {
   };
 
   setColor = eachColor => {
+    var point = [
+      d3
+        .select("svg")
+        .style("width")
+        .replace("px", "") / 2,
+
+      d3
+        .select("svg")
+        .style("height")
+        .replace("px", "") / 2
+    ];
+
+    var transform = d3.zoomTransform(d3.select("g.gContainer").node());
+
+    point = transform.invert(point);
     this.nodes.map(eachNode => {
       if (eachNode.id === this.selectedNode.id) {
         this.nodeToChange = eachNode;
@@ -1041,13 +1057,30 @@ class GraphEditor extends Component {
       //console.log("starttext");
       this.storeToHistory();
     }
+    this.previousTransform = d3.select("g.gContainer").attr("transform");
 
     //this.storeToHistory();
     this.updateEntire();
+
     this.nodeToChange = null;
   };
 
   setStyle = style => {
+    var point = [
+      d3
+        .select("svg")
+        .style("width")
+        .replace("px", "") / 2,
+
+      d3
+        .select("svg")
+        .style("height")
+        .replace("px", "") / 2
+    ];
+
+    var transform = d3.zoomTransform(d3.select("g.gContainer").node());
+
+    point = transform.invert(point);
     this.nodes.map(eachNode => {
       if (eachNode.id === this.selectedNode.id) {
         if (eachNode.style.includes(style)) {
@@ -1057,6 +1090,7 @@ class GraphEditor extends Component {
         }
       }
     });
+    this.previousTransform = d3.select("g.gContainer").attr("transform");
     this.updateEntire();
   };
   render() {
