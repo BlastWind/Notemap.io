@@ -1,5 +1,6 @@
 # DEMO
 live at https://blastwind.github.io/Notemap.io/!
+![](header.png)
 
 ## Usage
 To create fast mindmaps with a text editor on the size 
