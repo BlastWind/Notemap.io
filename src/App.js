@@ -10,8 +10,7 @@ function App() {
   return (
     <React.Fragment>
       <Router>
-        <Route path="/create" component={GraphEditor} />
-        <Route path="/home" component={Home} />
+        <Route path="" component={GraphEditor} />
       </Router>
     </React.Fragment>
   );
