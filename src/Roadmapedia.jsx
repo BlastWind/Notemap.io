@@ -6,71 +6,28 @@ import * as d3 from "d3";
 import { select, event } from "d3-selection";
 import "d3-selection-multi";
 import "./GraphEditor.css";
-
+import notFocused from "./svgs/network.svg";
+import focused from "./svgs/network_purple.svg";
 import manual from "./svgs/manual.svg";
+import {
+  rectOnClickSetUp,
+  rectOnClickBlurCurrentText
+} from "./RoadmapediaMouseFunctions.js";
 
+import { textArrToHTML } from "./RoadmapediaHelperFunctions.js";
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
-
-const initialTree = {
-  id: 0,
-  text: ["bruh"],
-  nodeWidth: 50,
-  nodeHeight: 30,
-  style: "bold",
-  fill: d3.rgb(colors(0)),
-  opacity: 1,
-  children: [
-    {
-      id: 1,
-      text: ["bruh2"],
-      nodeWidth: 50,
-      nodeHeight: 30,
-      style: "bold",
-      fill: d3.rgb(colors(0)),
-      opacity: 1,
-      children: [
-        {
-          id: 2,
-          text: ["bruh4"],
-          nodeWidth: 50,
-          nodeHeight: 30,
-          style: "bold",
-          fill: d3.rgb(colors(0)),
-          opacity: 1,
-          children: []
-        },
-
-        {
-          id: 3,
-          text: ["bruh5"],
-          nodeWidth: 50,
-          nodeHeight: 30,
-          style: "bold",
-          fill: d3.rgb(colors(0)),
-          opacity: 1,
-          children: []
-        }
-      ]
-    },
-    {
-      id: 4,
-      text: ["bruh3"],
-      nodeWidth: 50,
-      nodeHeight: 30,
-      style: "bold",
-      fill: d3.rgb(colors(0)),
-      opacity: 1,
-      children: []
-    }
-  ]
-};
+const initialNodes = [];
+const initialLinks = [];
 
 class GraphEditor extends Component {
   constructor(props) {
     super(props);
-    this.tree = initialTree;
-    this.state = { showManual: false };
+
+    this.state = { showManual: false, focus: true };
+
+    this.nodes = initialNodes;
+    this.links = initialLinks;
 
     this.selectedNode = null;
     this.selectedLink = null;
@@ -83,7 +40,12 @@ class GraphEditor extends Component {
     this.originalFill = null;
     this.newFill = null;
 
-    this.history = [initialTree];
+    this.history = [
+      {
+        nodes: [...initialNodes],
+        links: [...initialLinks]
+      }
+    ];
     this.txtHistory = [];
     this.historyStep = 0;
     this.previousTransform = null;
@@ -125,6 +87,7 @@ class GraphEditor extends Component {
   }
 
   componentDidMount() {
+    d3.select("#focusIcon").on("click", toggleFocus);
     var that = this;
 
     var GraphEditor = d3.select("div#editorsContainer");
@@ -133,25 +96,20 @@ class GraphEditor extends Component {
       "GraphEditorContainer"
     );
 
-    let intialRoot = d3.hierarchy(initialTree);
-    let initialLinks = intialRoot.links();
-    let initalNodes = intialRoot.descendants();
-
     that.force = d3
-      .forceSimulation()
+      .forceSimulation(that.nodes)
       .force(
         "link",
         d3
-          .forceLink(initialLinks)
+          .forceLink(that.links)
           .id(d => d.id)
           .distance(function(d) {
-            console.log(d);
-            return 250;
+            return d.linkDistance;
           })
       )
-      .force("charge", d3.forceManyBody().strength(-250))
-      .force("x", d3.forceX())
-      .force("y", d3.forceY())
+      .force("charge", d3.forceManyBody().strength(-5))
+      //.force("x", d3.forceX())
+      //.force("y", d3.forceY())
 
       .on("tick", tick);
 
@@ -159,7 +117,7 @@ class GraphEditor extends Component {
       .select(".GraphEditorContainer")
       .append("svg")
 
-      .style("width", window.innerWidth * 0.75)
+      .style("width", window.innerWidth)
       .attr("height", window.innerHeight)
       .style("float", "left");
     // define arrow markers for graph that.link
@@ -217,7 +175,6 @@ class GraphEditor extends Component {
       .on("mousedown", mousedown)
       .on("mousemove", mousemove)
       .on("mouseup", mouseup)
-      .on("keydown", keydown)
       .on("click", click)
 
       .append("svg:g")
@@ -242,6 +199,10 @@ class GraphEditor extends Component {
       .attr("class", "rectTextGroup")
       .on("mousedown", function(d) {});
     let textBox = container.append("foreignObject");
+    let optionGroup = container.append("g").attrs({ x: 60, y: 60 });
+
+    optionGroup.append("circle").attrs({ r: 15, fill: "red" });
+
     // app starts here
     var zoom = d3.zoom().on("zoom", function() {
       container.attr("transform", d3.event.transform);
@@ -266,91 +227,63 @@ class GraphEditor extends Component {
       );
     }
 
-    //.attr("transform", that.previousTransform);
-
     d3.select(window)
       .on("keydown", keydown)
       .on("keyup", keyup)
+      .on("keypress", keypress)
       .on("resize", resize);
-    restartCall();
+    restart();
 
     function resetMouseVars() {
       that.mousedownNode = null;
       //that.mouseupNode = null;
       that.mousedownLink = null;
     }
-
-    function restartCall() {
-      console.log(that.force.nodes());
-      that.nodeLocation = that.force.nodes();
-      restart();
-    }
     // update force layout (called automatically each iteration)
     function tick() {
       // draw directed edges with proper padding from node centers
-      //console.log("textINputCircle", that.textInputCircle);
-
       path.attr("d", d => {
-        return `M${d.source.x + d.source.data.nodeWidth / 2},${d.source.y +
-          d.source.data.nodeHeight / 2}L${d.target.x +
-          d.target.data.nodeWidth / 2},${d.target.y +
-          d.target.data.nodeHeight / 2}`;
-      });
-
-      circle.attr("transform", d => {
-        if (that.textInputCircle) {
-          if (d.data.id === that.textInputCircle.data.id) {
-            console.log("d", d, "textinputcircle", that.textInputCircle);
-            that.textInputCircle.x = d.x;
-            that.textInputCircle.y = d.y;
-          }
-        }
-        return `translate(${d.x},${d.y})`;
-      });
-
-      if (textBox.attr("x")) {
-        console.log("textInputCircle", that.textINputCircle);
-        //warning, chance 25 to something else, this is calculated with 50 / 2
-        textBox
-          .attr("x", that.textInputCircle.x + 25)
-          .attr("y", that.textInputCircle.y);
-      }
-    }
-    // update graph (called when needed)
-
-    function restart() {
-      console.log(that.tree);
-      // path (link) group
-
-      d3.selectAll("rect.node").remove();
-      d3.selectAll("text").remove();
-      d3.selectAll("g.textContainer").remove();
-
-      const newRoot = d3.hierarchy(that.tree);
-      const newLinks = newRoot.links();
-      let newNodes = newRoot.descendants();
-
-      console.log(that.nodeLocation, newNodes);
-      if (that.nodeLocation.length !== 0)
-        for (var i = 0; i < that.nodeLocation.length; i++) {
-          newNodes.map(eachNode => {
-            if (eachNode.data.id === that.nodeLocation[i].data.id) {
-              eachNode.x = that.nodeLocation[i].x;
-              eachNode.y = that.nodeLocation[i].y;
+        if (!that.state.focus) {
+          that.links.map(eachLink => {
+            if (eachLink.index === d.index) {
+              eachLink.linkDistance = Math.sqrt(
+                Math.pow(d.source.x - d.target.x, 2) +
+                  Math.pow(d.source.y - d.target.y, 2)
+              );
             }
           });
         }
 
-      that.force
-        .nodes(newNodes)
-        .force("link")
-        .links(newLinks);
+        return `M${d.source.x + d.source.width / 2},${d.source.y +
+          d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target.y +
+          d.target.height / 2}`;
+      });
+
+      circle.attr("transform", d => {
+        if (that.textInputCircle)
+          if (d.id === that.textInputCircle.id) {
+            that.textInputCircle.x = d.x;
+            that.textInputCircle.y = d.y;
+          }
+
+        return `translate(${d.x},${d.y})`;
+      });
+
+      if (textBox.attr("x"))
+        //if x exists, textBox is visible, change positions
+        textBox
+          .attr("x", that.textInputCircle.x + 25)
+          .attr("y", that.textInputCircle.y);
+    }
+    // update graph (called when needed)
+
+    function restart() {
+      d3.selectAll("rect").remove();
+      d3.selectAll("text").remove();
+      d3.selectAll("g.textContainer").remove();
       //
-
-      console.log("new nodes", newNodes);
-
       //JOIN DATA
-      path = path.data(newLinks);
+      path = path.data(that.links);
 
       // update existing that.links
       path
@@ -377,13 +310,13 @@ class GraphEditor extends Component {
               ? null
               : that.mousedownLink;
           that.selectedNode = null;
-          restartCall();
+          restart();
         })
         .merge(path);
 
       // bind data
       // svg => g => g => {circle, text}
-      let g = circle.data(newNodes, d => d.id);
+      let g = circle.data(that.nodes, d => d.id);
       g.exit().remove();
       g = g
         .enter()
@@ -406,26 +339,18 @@ class GraphEditor extends Component {
             that.mousedownNode === that.selectedNode
               ? null
               : that.mousedownNode;
+
+          console.log("selectedNode", that.selectedNode);
           that.selectedLink = null;
 
           rect.style("fill", function(d) {
             if (d === that.selectedNode) {
-              return "white";
-              return d.data.fill.brighter().toString();
+              return d.fill.brighter().toString();
             } else {
-              return "white";
-              return d.data.fill;
+              return d.fill;
             }
           });
 
-          if (that.selectedNode) {
-            const circleDiv = document.getElementById("circleDiv");
-            circleDiv.classList.add("colored");
-          } else {
-            const circleDiv = document.getElementById("circleDiv");
-            circleDiv.classList.remove("colored");
-            document.getElementById("colorPicker").classList.remove("show");
-          }
           //can't restart, if restart dblclick can't be detected
           //restart();
         })
@@ -455,7 +380,11 @@ class GraphEditor extends Component {
           const source = that.mousedownNode;
           const target = that.mouseupNode;
 
-          that.links.push({ source, target });
+          that.links.push({
+            source: source,
+            target: target,
+            linkDistance: 250
+          });
 
           that.storeToHistory();
 
@@ -463,27 +392,26 @@ class GraphEditor extends Component {
           that.mousedownNode = null;
           console.log("mouseup node in mouseup()", that.mouseupNode);
 
-          restartCall();
+          restart();
         });
 
       textContainers
 
-        .attr("opacity", d => d.data.opacity)
+        .attr("opacity", d => d.opacity)
         //.attr("text-anchor", "middle")
-
         .attr("dy", function(d) {
-          var nwords = d.data.text.length;
+          var nwords = d.text.length;
           return "-" + (nwords - 1) * 12;
         })
         .each(function(d, ind) {
           //after appending the tspan elements
           //we get access to widthArray
-          var nwords = d.data.text.length;
+          var nwords = d.text.length;
           for (var i = 0; i < nwords; i++) {
             var rectAndTextPair = d3.select(this).append("g");
             if (
-              d.data.style.includes("highlight") &&
-              d.data.text[i].trim().length !== 0
+              d.style.includes("highlight") &&
+              d.text[i].trim().length !== 0
             ) {
               rectAndTextPair.append("rect").attrs({
                 width: 10,
@@ -495,13 +423,13 @@ class GraphEditor extends Component {
             var tspan = rectAndTextPair
               .append("text")
               .style("font-style", function(d) {
-                if (d.data.style.includes("italic")) return "italic";
+                if (d.style.includes("italic")) return "italic";
               })
               .style("font-weight", function(d) {
-                if (d.data.style.includes("bold")) return "bold";
+                if (d.style.includes("bold")) return "bold";
               })
               .html(function(d) {
-                var a = d.data.text[i];
+                var a = d.text[i];
                 while (a.includes(" ")) {
                   a = a.replace(" ", "&nbsp;");
                 }
@@ -521,6 +449,11 @@ class GraphEditor extends Component {
               if (highlightRect) {
                 highlightRect.attr("width", bboxWidth);
               }
+
+              that.textInputCircle = {
+                ...that.textInputCircle,
+                goodX: (d.width - bboxWidth) / 2
+              };
             });
 
             if (i > 0) tspan.attr("y", 15 * i);
@@ -541,9 +474,9 @@ class GraphEditor extends Component {
                 .getBBox().width
             );
           });
-          d.data.nodeWidth = Math.max(...widthArray) + 50;
+          d.width = Math.max(...widthArray) + 50;
 
-          d.data.nodeHeight = d.data.text.length * eachTextHeight + 25;
+          d.height = d.text.length * eachTextHeight + 25;
 
           //
         })
@@ -558,7 +491,7 @@ class GraphEditor extends Component {
             .node()
             .getBBox().height;
           var toShiftX = 25;
-          var toShiftY = (d.data.nodeHeight - bboxHeight) / 2 + 12.5;
+          var toShiftY = (d.height - bboxHeight) / 2 + 12.5;
           return "translate(" + toShiftX + "px, " + toShiftY + "px)";
         });
 
@@ -567,71 +500,38 @@ class GraphEditor extends Component {
         .attr("rx", 6)
         .attr("ry", 6)
         .attrs({
-          width: d => d.data.nodeWidth,
-          height: d => d.data.nodeHeight
+          class: "node",
+          rx: 6,
+          ry: 6,
+          width: d => d.width,
+          height: d => d.height
         })
         .style("fill", function(d) {
-          return "white";
-          if (d === that.selectedNode) {
-            return d.data.fill.brighter().toString();
-          } else return d.data.fill;
+          if (that.selectedNode && d.id === that.selectedNode.id) {
+            return d.fill.brighter().toString();
+          } else return d.fill;
         })
         .style("stroke", "black")
-        .on("dblclick", function(d) {
-          const circleDiv = document.getElementById("circleDiv");
-          circleDiv.classList.remove("colored");
-          document.getElementById("colorPicker").classList.remove("show");
-          that.isTyping = true;
-          that.selectedNode = null;
+        .on("dblclick", function(rectData) {
           resetMouseVars();
+          rectOnClickSetUp(
+            that.isTyping,
+            that.selectedNode,
+            svg,
+            that.startText,
+            rectData
+          );
+          rectOnClickBlurCurrentText(that.nodes, restart, rectData);
+          that.textInputCircle = rectData;
 
-          svg.on(".zoom", null);
-
-          that.startText = d.data.text;
-          that.force.nodes().map(eachNode => {
-            console.log("eachnode", eachNode, "d", d);
-            if (eachNode.data.id === d.data.id) {
-              console.log(
-                "muted id",
-                eachNode.data.id,
-                " text: ",
-                eachNode.data.text
-              );
-              eachNode.data.opacity = 0;
-              restartCall();
-            }
-          });
-          that.textInputCircle = d;
-          // warning: please replac window.innerWidth
           textBox = textBox
-            .attr("x", function(d) {
-              return 10;
-            })
-            .attr("y", d.y)
+            .attr("x", rectData.x)
+            .attr("y", rectData.y)
             .attr("width", window.innerWidth / 2)
             .attr("height", window.innerHeight);
           var paragraph = textBox
             .append("xhtml:p")
-            .html(function() {
-              function textArrToHTML(textArr) {
-                //["hi my name is", "andrew chen"] to <p>hi my name is<br>andrew chen</p>
-                var initialHTML = "<p>";
-                for (var i = 0; i < textArr.length; i++) {
-                  if (textArr[i] === "") {
-                    initialHTML += "<br>";
-                  } else initialHTML += textArr[i];
-
-                  if (i !== textArr.length - 1 && textArr[i] !== "") {
-                    initialHTML += "<br>";
-                  }
-                }
-                return initialHTML + "</p>";
-              }
-              var textArr = d.data.text;
-              var html = textArrToHTML(textArr);
-
-              return html;
-            })
+            .html(() => textArrToHTML(rectData.text))
             .attr("contentEditable", "true")
             .attr("spellcheck", false)
             .attr("width", window.innerWidth / 2)
@@ -653,28 +553,26 @@ class GraphEditor extends Component {
               d3.selectAll("foreignObject").remove();
               textBox = container.append("foreignObject");
 
-              that.force.nodes().map(eachNode => {
-                if (eachNode.data.id === that.textInputCircle.data.id) {
-                  eachNode.data.opacity = 1;
-                  restartCall();
+              that.nodes.map(eachNode => {
+                if (eachNode.id === that.textInputCircle.id) {
+                  eachNode.opacity = 1;
+                  restart();
                 }
               });
 
-              /*
               var oldNodes = that.history[that.historyStep].nodes;
 
               var matchedNode = oldNodes.filter(eachNode => {
-                return eachNode.id === d.id;
+                return eachNode.id === rectData.id;
               });
-*/
 
               //TODO: if text isn't the same or the node is brand new, store to history
               //on add new node, notNewNode is false
               //on dblclick, blur, notNewNode is true
-              if (that.startText !== d.data.text) {
-                that.nodeToChange = d;
+              if (that.startText !== rectData.text) {
+                that.nodeToChange = rectData;
                 //console.log("starttext");
-                //that.storeToHistory();
+                that.storeToHistory();
               }
 
               that.startText = null;
@@ -692,7 +590,7 @@ class GraphEditor extends Component {
                 this.blur();
               } else {
                 var node = d3.select(this).node();
-                // note, d.data.text is referring to the d in dblclick, d in g, d in text, from that.nodes
+                // note, d.text is referring to the d in dblclick, d in g, d in text, from that.nodes
                 var nodeHTML = d3.select(this).node().innerHTML;
 
                 nodeHTML = nodeHTML.slice(3, nodeHTML.length - 4);
@@ -705,18 +603,13 @@ class GraphEditor extends Component {
                 }
 
                 var textArr = nodeHTML.split("<br>");
-                d.data.text = textArr;
+                rectData.text = textArr;
 
-                restartCall();
+                restart();
               }
             });
 
           paragraph.node().focus();
-          window.setTimeout(function() {
-            var val = paragraph.node().innerHTML;
-            paragraph.node().innerHTML = "";
-            paragraph.node().innerHTML = val;
-          }, 1);
         })
         .on("mouseover", function(d) {
           if (!d3.event.ctrlKey) return;
@@ -740,20 +633,12 @@ class GraphEditor extends Component {
 
           rect.style("fill", function(d) {
             if (d === that.selectedNode) {
-              return d.data.fill.brighter().toString();
+              return d.fill.brighter().toString();
             } else {
-              return d.data.fill;
+              return d.fill;
             }
           });
 
-          if (that.selectedNode) {
-            const circleDiv = document.getElementById("circleDiv");
-            circleDiv.classList.add("colored");
-          } else {
-            const circleDiv = document.getElementById("circleDiv");
-            circleDiv.classList.remove("colored");
-            document.getElementById("colorPicker").classList.remove("show");
-          }
           //can't restart, if restart dblclick can't be detected
           //restart();
         })
@@ -783,7 +668,11 @@ class GraphEditor extends Component {
           const source = that.mousedownNode;
           const target = that.mouseupNode;
 
-          that.links.push({ source, target });
+          that.links.push({
+            source: source,
+            target: target,
+            linkDistance: 250
+          });
 
           that.storeToHistory();
 
@@ -791,25 +680,48 @@ class GraphEditor extends Component {
           that.mousedownNode = null;
           console.log("mouseup node in mouseup()", that.mouseupNode);
 
-          restartCall();
+          restart();
         });
 
       circle = g.merge(circle);
 
-      // set the graph in motion
+      that.force.nodes(that.nodes);
 
       that.force.alphaTarget(0.3).restart();
+    }
+
+    function toggleFocus() {
+      that.setState({ focus: !that.state.focus });
+      if (that.state.focus) {
+        console.log("focused, force is applied");
+        that.force = d3
+          .forceSimulation(that.nodes)
+          .force(
+            "link",
+            d3
+              .forceLink(that.links)
+              .id(d => d.id)
+              .distance(function(d) {
+                return d.linkDistance;
+              })
+          )
+          .force("charge", d3.forceManyBody().strength(-100))
+          .on("tick", tick);
+
+        that.force.alphaTarget(0.3).restart();
+      } else {
+        console.log("unfocused, dragging will change length");
+        that.force.force("link", null).force("charge", null);
+      }
+
+      that.previousTransform = d3.select("g.gContainer").attr("transform");
+      restart();
     }
 
     //sensing svg click
     function click() {
       if (d3.event.ctrlKey && !that.mousedownNode) {
-        console.log(that.isDragging);
-
-        svg.classed("active", true);
-
         var point = d3.mouse(this);
-
         var transform = d3.zoomTransform(container.node());
         point = transform.invert(point);
 
@@ -825,18 +737,15 @@ class GraphEditor extends Component {
         };
         that.nodes.push(node);
 
-        that.previousTransform = container.attr("transform");
-        that.updateEntire();
+        restart();
 
-        d3.selectAll("rect")
-          .filter(function(d, i, list) {
-            return i === list.length - 1;
-          })
-          .dispatch("dblclick");
+        var toDispatch = d3.selectAll("rect").filter(function(d, i, list) {
+          return i === list.length - 1;
+        });
+        toDispatch.dispatch("dblclick");
       }
-      resetMouseVars();
     }
-    function huh() {}
+
     function mousedown() {}
     //sensing svg mousemove (move dragLine)
     function mousemove() {
@@ -974,45 +883,13 @@ class GraphEditor extends Component {
           }
         }
       }
-      //
+
       if (!that.selectedNode && !that.selectedLink) return;
 
       switch (d3.event.keyCode) {
-        case 9:
-          if (that.selectedNode) {
-            //get reference to the node,
-            //pappend newNode to thatNode.children
-            const newNode = {
-              text: ["bruh"],
-              nodeWidth: 50,
-              nodeHeight: 30,
-              style: "bold",
-              fill: d3.rgb(colors(0)),
-              opacity: 1,
-              children: []
-            };
-            function findAndUpdate(targetObj, id) {
-              if (targetObj.id === id) {
-                if (targetObj.children) {
-                  targetObj.children.push(newNode);
-                } else {
-                  targetObj.children = [];
-                  targetObj.children.push(newNode);
-                }
-                return;
-              } else {
-                if (targetObj.children)
-                  targetObj.children.forEach(eachNode => {
-                    findAndUpdate(eachNode, id);
-                  });
-              }
-            }
-            console.log(that.tree);
-            findAndUpdate(that.tree, that.selectedNode.data.id);
-            restartCall();
-          }
+        case 9: //tab
           break;
-        case 8: // backspace
+
         case 46: // delete
           if (that.selectedNode) {
             that.nodes.splice(that.nodes.indexOf(that.selectedNode), 1);
@@ -1030,126 +907,54 @@ class GraphEditor extends Component {
     }
 
     function keyup() {
-      //lastKeyDown = -1;
+      switch (d3.event.keyCode) {
+        case 9: //tab
+          toggleFocus();
+          break;
+        case 192: // ` ~ key
+          if (that.selectedNode) {
+            const node = {
+              id: that.nodes.length,
+              width: 150,
+              height: 40,
+              text: [""],
+              x: that.selectedNode.x + that.selectedNode.width + 100,
+              y: that.selectedNode.y,
+              fill: d3.rgb(colors(that.nodes.length)),
+              style: "bold"
+            };
 
-      // ctrl
-      if (d3.event.keyCode === 17) {
-        //d3.select("#linkPic").attr("src", link);
+            // instead of pushing node, we make the circle text selection group
+
+            that.nodes.push(node);
+            const source = that.selectedNode;
+            const target = node;
+            restart();
+
+            that.links.push({
+              source: source,
+              target: target,
+              linkDistance: 250,
+              index: that.links.length
+            });
+
+            var toDispatch = d3.selectAll("rect").filter(function(d, i, list) {
+              return i === list.length - 1;
+            });
+
+            toDispatch.dispatch("dblclick");
+            that.selectedNode = that.nodes[that.nodes.length - 1];
+          }
       }
     }
 
+    function keypress() {}
+
     function resize() {
-      svg
-        .style("width", 0.75 * window.innerWidth)
-        .style("height", window.innerHeight);
+      svg.style("width", window.innerWidth).style("height", window.innerHeight);
     }
   }
 
-  onTxtToNode = (txt, style) => {
-    var point = [
-      d3
-        .select("svg")
-        .style("width")
-        .replace("px", "") / 2,
-
-      d3
-        .select("svg")
-        .style("height")
-        .replace("px", "") / 2
-    ];
-
-    var transform = d3.zoomTransform(d3.select("g.gContainer").node());
-
-    point = transform.invert(point);
-
-    const node = {
-      id: this.nodes.length,
-      width: 150,
-      height: 40,
-      text: txt.split("\n"),
-      x: point[0],
-      y: point[1],
-      fill: d3.rgb(colors(this.nodes.length)),
-      style: style
-    };
-    this.nodes.push(node);
-
-    this.storeToHistory();
-    this.previousTransform = d3.select("g.gContainer").attr("transform");
-    this.updateEntire();
-  };
-
-  toggleManual = () => {
-    this.setState({ showManual: !this.state.showManual });
-  };
-
-  setColor = eachColor => {
-    var point = [
-      d3
-        .select("svg")
-        .style("width")
-        .replace("px", "") / 2,
-
-      d3
-        .select("svg")
-        .style("height")
-        .replace("px", "") / 2
-    ];
-
-    var transform = d3.zoomTransform(d3.select("g.gContainer").node());
-
-    point = transform.invert(point);
-    this.nodes.map(eachNode => {
-      if (eachNode.id === this.selectedNode.id) {
-        this.nodeToChange = eachNode;
-        console.log(d3.rgb(colors(0)));
-        //console.log(d3.rgb(colors(8)));
-        this.originalFill = eachNode.fill;
-        eachNode.fill = d3.rgb(colors(eachColor));
-        this.newFill = d3.rgb(colors(eachColor));
-      }
-    });
-
-    if (JSON.stringify(this.originalFill) !== JSON.stringify(this.newFill)) {
-      //console.log("starttext");
-      this.storeToHistory();
-    }
-    this.previousTransform = d3.select("g.gContainer").attr("transform");
-
-    //this.storeToHistory();
-    this.updateEntire();
-
-    this.nodeToChange = null;
-  };
-
-  setStyle = style => {
-    var point = [
-      d3
-        .select("svg")
-        .style("width")
-        .replace("px", "") / 2,
-
-      d3
-        .select("svg")
-        .style("height")
-        .replace("px", "") / 2
-    ];
-
-    var transform = d3.zoomTransform(d3.select("g.gContainer").node());
-
-    point = transform.invert(point);
-    this.nodes.map(eachNode => {
-      if (eachNode.id === this.selectedNode.id) {
-        if (eachNode.style.includes(style)) {
-          eachNode.style = eachNode.style.replace(style, "");
-        } else {
-          eachNode.style += style;
-        }
-      }
-    });
-    this.previousTransform = d3.select("g.gContainer").attr("transform");
-    this.updateEntire();
-  };
   render() {
     const colorOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     return (
@@ -1159,7 +964,7 @@ class GraphEditor extends Component {
           {this.state.showManual ? (
             <Manual toggleManual={this.toggleManual} />
           ) : null}
-          <PageContainer onTxtToNode={this.onTxtToNode} />
+
           <img
             style={{
               position: "absolute",
@@ -1171,59 +976,19 @@ class GraphEditor extends Component {
             onClick={this.toggleManual}
             src={manual}
           />
-          <React.Fragment>
-            <div
-              id="circleDiv"
-              className="circleDiv"
-              onClick={() => {
-                const circleDiv = document.getElementById("circleDiv");
-                if (circleDiv.className.includes("colored")) {
-                  const colorPicker = document.getElementById("colorPicker");
-                  colorPicker.classList.toggle("show");
-                }
+          <div>
+            <img
+              style={{
+                position: "absolute",
+                top: "120px",
+                right: "15px",
+                width: "50px",
+                cursor: "pointer"
               }}
-            ></div>
-            <div id="colorPicker" className="colorPicker">
-              {colorOptions.map(eachColor => {
-                return (
-                  <div
-                    style={{
-                      width: "30px",
-                      height: "15px",
-                      background: d3.rgb(colors(eachColor)),
-                      cursor: "pointer"
-                    }}
-                    onClick={() => {
-                      this.setColor(eachColor);
-                    }}
-                  ></div>
-                );
-              })}
-              <a
-                onClick={() => {
-                  this.setStyle("bold");
-                }}
-              >
-                BOLD
-              </a>
-              <br />
-              <a
-                onClick={() => {
-                  this.setStyle("highlight");
-                }}
-              >
-                HIGHLIGHT
-              </a>
-              <br />
-              <a
-                onClick={() => {
-                  this.setStyle("italic");
-                }}
-              >
-                ITALIC
-              </a>
-            </div>
-          </React.Fragment>
+              id="focusIcon"
+              src={this.state.focus ? focused : notFocused}
+            />
+          </div>
         </div>
       </React.Fragment>
     );
