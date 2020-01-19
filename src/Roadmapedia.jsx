@@ -37,8 +37,6 @@ class GraphEditor extends Component {
 
     this.force = null;
     this.startText = null;
-    this.originalFill = null;
-    this.newFill = null;
 
     this.history = [
       {
@@ -75,14 +73,9 @@ class GraphEditor extends Component {
       texts: {
         undoTo: this.startText,
         redoTo: this.nodeToChange ? this.nodeToChange.text : null
-      },
-      fills: {
-        undoTo: this.originalFill,
-        redoTo: this.newFill ? this.newFill : null
       }
     };
     this.history = this.history.concat([newStep]);
-
     this.historyStep += 1;
   }
 
@@ -170,6 +163,7 @@ class GraphEditor extends Component {
         d.fy = null;
         that.isDragging = false;
         resetMouseVars();
+        console.log("Drag Ended");
       });
     var container = svg
       .on("mousedown", mousedown)
@@ -325,8 +319,6 @@ class GraphEditor extends Component {
         .merge(g)
         .call(drag);
 
-      g.on("mouseup", function() {});
-
       var rect = g.append("svg:rect");
 
       var textContainers = g
@@ -342,14 +334,6 @@ class GraphEditor extends Component {
 
           console.log("selectedNode", that.selectedNode);
           that.selectedLink = null;
-
-          rect.style("fill", function(d) {
-            if (d === that.selectedNode) {
-              return d.fill.brighter().toString();
-            } else {
-              return d.fill;
-            }
-          });
 
           //can't restart, if restart dblclick can't be detected
           //restart();
@@ -416,8 +400,7 @@ class GraphEditor extends Component {
               rectAndTextPair.append("rect").attrs({
                 width: 10,
                 height: 15.5,
-                y: i * 15 - 12,
-                fill: "yellow"
+                y: i * 15 - 12
               });
             }
             var tspan = rectAndTextPair
@@ -496,23 +479,25 @@ class GraphEditor extends Component {
         });
 
       rect
-        .attr("class", "node")
-        .attr("rx", 6)
-        .attr("ry", 6)
         .attrs({
           class: "node",
           rx: 6,
           ry: 6,
           width: d => d.width,
-          height: d => d.height
+          height: d => d.height,
+          fill: "white",
+          stroke: "black"
         })
-        .style("fill", function(d) {
-          if (that.selectedNode && d.id === that.selectedNode.id) {
-            return d.fill.brighter().toString();
-          } else return d.fill;
+        .attr("stroke", function(d) {
+          if (that.selectedNode) {
+            if (d.id === that.selectedNode.id) {
+              return "black";
+            }
+          }
+          return "black";
         })
-        .style("stroke", "black")
         .on("dblclick", function(rectData) {
+          console.log("Double Clicked On A Node");
           resetMouseVars();
           rectOnClickSetUp(
             that.isTyping,
@@ -623,6 +608,7 @@ class GraphEditor extends Component {
           d3.select(this).attr("transform", "");
         })
         .on("mousedown", d => {
+          console.log("Mouse Downed on A Node");
           // select node
           that.mousedownNode = d;
           that.selectedNode =
@@ -630,19 +616,10 @@ class GraphEditor extends Component {
               ? null
               : that.mousedownNode;
           that.selectedLink = null;
-
-          rect.style("fill", function(d) {
-            if (d === that.selectedNode) {
-              return d.fill.brighter().toString();
-            } else {
-              return d.fill;
-            }
-          });
-
           //can't restart, if restart dblclick can't be detected
-          //restart();
         })
         .on("mouseup", function(d) {
+          console.log("Mouse Upped on A Node");
           if (!that.mousedownNode) return;
 
           svg.call(
@@ -720,6 +697,14 @@ class GraphEditor extends Component {
 
     //sensing svg click
     function click() {
+      console.log("Mouse Click in window");
+      console.log(
+        "event sequences should be over",
+        "selectedNode",
+        that.selectedNode,
+        "mousedownNode",
+        that.mousedownNode
+      );
       if (d3.event.ctrlKey && !that.mousedownNode) {
         var point = d3.mouse(this);
         var transform = d3.zoomTransform(container.node());
@@ -732,7 +717,7 @@ class GraphEditor extends Component {
           x: point[0],
           y: point[1],
           text: [""],
-          fill: d3.rgb(colors(that.nodes.length)),
+
           style: ""
         };
         that.nodes.push(node);
@@ -744,9 +729,12 @@ class GraphEditor extends Component {
         });
         toDispatch.dispatch("dblclick");
       }
+      resetMouseVars();
     }
 
-    function mousedown() {}
+    function mousedown() {
+      console.log("Mouse Down in window");
+    }
     //sensing svg mousemove (move dragLine)
     function mousemove() {
       that.mouseupNode = null;
@@ -771,6 +759,7 @@ class GraphEditor extends Component {
 
     //sensing svg mouseup (undraws link)
     function mouseup() {
+      console.log("Mouse Up in window");
       //console.log("svg mouseup", "mousedown node", that.mousedownNode);
 
       if (that.mousedownNode) {
@@ -819,19 +808,6 @@ class GraphEditor extends Component {
               });
             }
 
-            if (
-              that.history[that.historyStep].nodeToChangeID !== -1 &&
-              that.history[that.historyStep].fills.redoTo
-            ) {
-              that.nodes.map(eachNode => {
-                if (
-                  eachNode.id === that.history[that.historyStep].nodeToChangeID
-                ) {
-                  eachNode.fill = that.history[that.historyStep].fills.redoTo;
-                }
-              });
-            }
-
             that.links = [...that.history[that.historyStep].links];
 
             restart();
@@ -858,21 +834,6 @@ class GraphEditor extends Component {
                       that.history[that.historyStep + 1].texts.undoTo
                     )
                   );
-                }
-              });
-            }
-
-            if (
-              that.history[that.historyStep + 1].nodeToChangeID !== -1 &&
-              that.history[that.historyStep + 1].fills.undoTo
-            ) {
-              that.nodes.map(eachNode => {
-                if (
-                  eachNode.id ===
-                  that.history[that.historyStep + 1].nodeToChangeID
-                ) {
-                  eachNode.fill =
-                    that.history[that.historyStep + 1].fills.undoTo;
                 }
               });
             }
