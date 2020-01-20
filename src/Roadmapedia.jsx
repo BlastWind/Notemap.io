@@ -13,7 +13,10 @@ import {
   rectOnClickSetUp,
   rectOnClickBlurCurrentText
 } from "./RoadmapediaMouseFunctions.js";
-
+import alphabetT from "./svgs/t-alphabet.svg";
+import alphabetTPurple from "./svgs/t-alphabet-purple.svg";
+import link from "./svgs/link.svg";
+import purpleLink from "./svgs/purpleLink.svg";
 import { textArrToHTML } from "./RoadmapediaHelperFunctions.js";
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
@@ -140,6 +143,29 @@ class GraphEditor extends Component {
       .attr("d", "M10,-5L0,0L10,5")
       .attr("fill", "#000");
 
+    var defs = svg.append("defs");
+
+    var gradient = defs
+      .append("linearGradient")
+      .attr("id", "svgGradient")
+      .attr("x1", "0%")
+      .attr("x2", "100%")
+      .attr("y1", "0%")
+      .attr("y2", "100%");
+
+    gradient
+      .append("stop")
+      .attr("class", "start")
+      .attr("offset", "0%")
+      .attr("stop-color", "red")
+      .attr("stop-opacity", 1);
+
+    gradient
+      .append("stop")
+      .attr("class", "end")
+      .attr("offset", "100%")
+      .attr("stop-color", "blue");
+
     // line displayed when dragging new nodes
 
     const drag = d3
@@ -193,9 +219,86 @@ class GraphEditor extends Component {
       .attr("class", "rectTextGroup")
       .on("mousedown", function(d) {});
     let textBox = container.append("foreignObject");
-    let optionGroup = container.append("g").attrs({ x: 60, y: 60 });
+    let optionGroup = container
+      .append("g")
+      .attrs({ x: 0, y: 0, visibility: "hidden" });
+    var optionGroupConnector = optionGroup
+      .append("line")
+      .attrs({ x1: 0, y1: 0, x2: 0, y2: 0, stroke: "black" })
+      .attr("stroke-width", 2);
+    var optionGroupT = optionGroup
+      .append("image")
+      .attr("xlink:href", alphabetT)
+      .attrs({ width: 50, height: 50, x: 75 })
+      .on("mouseover", function() {
+        d3.select(this).attr("xlink:href", alphabetTPurple);
+      })
+      .on("mouseout", function() {
+        d3.select(this).attr("xlink:href", alphabetT);
+      })
+      .on("click", function(d) {
+        //create text node?
+        if (that.selectedNode) {
+          optionGroup.attr("visibility", "hidden");
 
-    optionGroup.append("circle").attrs({ r: 15, fill: "red" });
+          const node = {
+            id: that.nodes.length,
+            width: 150,
+            height: 40,
+            text: [""],
+            x: that.selectedNode.x + that.selectedNode.width + 100,
+            y: that.selectedNode.y,
+            fill: d3.rgb(colors(that.nodes.length)),
+            style: "bold"
+          };
+
+          console.log("new node x", node.x, "selected x", that.selectedNode.x);
+
+          that.nodes.push(node);
+          const source = that.selectedNode;
+          const target = node;
+          restart();
+
+          that.links.push({
+            source: source,
+            target: target,
+            linkDistance:
+              node.x - that.selectedNode.x > 250
+                ? node.x - that.selectedNode.x
+                : 250,
+            index: that.links.length
+          });
+
+          var toDispatch = d3.selectAll("rect").filter(function(d, i, list) {
+            return i === list.length - 1;
+          });
+
+          toDispatch.dispatch("dblclick");
+          that.selectedNode = that.nodes[that.nodes.length - 1];
+        }
+      });
+
+    var optionGroupBorder = optionGroup
+      .append("line")
+      .attrs({ x1: 57.5, y1: 9, x2: 57.5, y2: 42, stroke: "black" })
+      .attr("stroke-width", 2);
+
+    var optionGroupLink = optionGroup
+      .append("image")
+      .on("mouseover", function() {
+        d3.select(this).attr("xlink:href", purpleLink);
+      })
+      .on("mouseout", function() {
+        d3.select(this).attr("xlink:href", link);
+      })
+      .attr("xlink:href", link)
+      .attrs({
+        width: 30,
+        height: 30,
+        y: 10,
+        color: "purple",
+        stroke: "purple"
+      });
 
     // app starts here
     var zoom = d3.zoom().on("zoom", function() {
@@ -485,20 +588,19 @@ class GraphEditor extends Component {
           ry: 6,
           width: d => d.width,
           height: d => d.height,
-          fill: "white",
-          stroke: "black"
+          fill: "white"
         })
+        .style("stroke-width", 2)
         .attr("stroke", function(d) {
-          if (that.selectedNode) {
-            if (d.id === that.selectedNode.id) {
-              return "black";
-            }
+          if (that.selectedNode && d.id === that.selectedNode.id) {
+            return "url(#svgGradient)";
           }
           return "black";
         })
         .on("dblclick", function(rectData) {
           console.log("Double Clicked On A Node");
-          resetMouseVars();
+          that.mousedownNode = null;
+          that.selectedNode = null;
           rectOnClickSetUp(
             that.isTyping,
             that.selectedNode,
@@ -609,14 +711,34 @@ class GraphEditor extends Component {
         })
         .on("mousedown", d => {
           console.log("Mouse Downed on A Node");
-          // select node
+          console.log("rects", rect);
+          rect.each(function(d2) {
+            var isNewSelection = false;
+            if (d.id === d2.id) {
+              var currentStroke = d3.select(this).attr("stroke");
+              if (currentStroke === "url(#svgGradient)") {
+                d3.select(this).attr("stroke", "black");
+              } else {
+                d3.select(this).attr("stroke", "url(#svgGradient)");
+                isNewSelection = true;
+              }
+            }
+
+            if (isNewSelection) {
+              rect.each(function(d2) {
+                if (d.id !== d2.id) {
+                  d3.select(this).attr("stroke", "black");
+                }
+              });
+            }
+          });
+
           that.mousedownNode = d;
           that.selectedNode =
             that.mousedownNode === that.selectedNode
               ? null
               : that.mousedownNode;
           that.selectedLink = null;
-          //can't restart, if restart dblclick can't be detected
         })
         .on("mouseup", function(d) {
           console.log("Mouse Upped on A Node");
@@ -698,13 +820,7 @@ class GraphEditor extends Component {
     //sensing svg click
     function click() {
       console.log("Mouse Click in window");
-      console.log(
-        "event sequences should be over",
-        "selectedNode",
-        that.selectedNode,
-        "mousedownNode",
-        that.mousedownNode
-      );
+
       if (d3.event.ctrlKey && !that.mousedownNode) {
         var point = d3.mouse(this);
         var transform = d3.zoomTransform(container.node());
@@ -730,6 +846,13 @@ class GraphEditor extends Component {
         toDispatch.dispatch("dblclick");
       }
       resetMouseVars();
+      console.log(
+        "event sequences should be over",
+        "selectedNode",
+        that.selectedNode,
+        "mousedownNode",
+        that.mousedownNode
+      );
     }
 
     function mousedown() {
@@ -874,37 +997,32 @@ class GraphEditor extends Component {
           break;
         case 192: // ` ~ key
           if (that.selectedNode) {
-            const node = {
-              id: that.nodes.length,
-              width: 150,
-              height: 40,
-              text: [""],
+            // instead of pushing node, we make the circle text selection group visible
+            optionGroup.attr("visibility", "visible");
+
+            optionGroupT.attrs({
+              x: that.selectedNode.x + that.selectedNode.width + 100 + 75,
+              y: that.selectedNode.y + that.selectedNode.height / 2 - 25
+            });
+
+            optionGroupBorder.attrs({
+              x1: that.selectedNode.x + that.selectedNode.width + 100 + 57.5,
+              x2: that.selectedNode.x + that.selectedNode.width + 100 + 57.5,
+              y1: that.selectedNode.y + 9 + that.selectedNode.height / 2 - 25,
+              y2: that.selectedNode.y + 42 + that.selectedNode.height / 2 - 25
+            });
+
+            optionGroupLink.attrs({
               x: that.selectedNode.x + that.selectedNode.width + 100,
-              y: that.selectedNode.y,
-              fill: d3.rgb(colors(that.nodes.length)),
-              style: "bold"
-            };
-
-            // instead of pushing node, we make the circle text selection group
-
-            that.nodes.push(node);
-            const source = that.selectedNode;
-            const target = node;
-            restart();
-
-            that.links.push({
-              source: source,
-              target: target,
-              linkDistance: 250,
-              index: that.links.length
+              y: that.selectedNode.y + 9 + that.selectedNode.height / 2 - 25
             });
 
-            var toDispatch = d3.selectAll("rect").filter(function(d, i, list) {
-              return i === list.length - 1;
+            optionGroupConnector.attrs({
+              x1: that.selectedNode.x + that.selectedNode.width,
+              y1: that.selectedNode.y + that.selectedNode.height / 2,
+              x2: that.selectedNode.x + that.selectedNode.width + 107,
+              y2: that.selectedNode.y + that.selectedNode.height / 2
             });
-
-            toDispatch.dispatch("dblclick");
-            that.selectedNode = that.nodes[that.nodes.length - 1];
           }
       }
     }
