@@ -215,8 +215,8 @@ class GraphEditor extends Component {
     let path = container.append("svg:g").selectAll("path");
     let nodes = container
       .append("svg:g")
-      .selectAll("g")
-      .attr("class", "rectTextGroup")
+      .selectAll("g.nodeGroup")
+
       .on("mousedown", function(d) {});
     let textBox = container.append("foreignObject");
     let resourceForm = container
@@ -490,10 +490,10 @@ class GraphEditor extends Component {
 
     function restart() {
       //TODO: selectAll as temporary solution, upgrade to difference update pattern
+
       d3.selectAll("rect.node").remove();
       d3.selectAll("text").remove();
       d3.selectAll("g.textContainer").remove();
-      d3.selectAll("circle").remove();
       //
       //JOIN DATA
       path = path.data(that.links);
@@ -527,42 +527,21 @@ class GraphEditor extends Component {
         })
         .merge(path);
 
-      /*
-      let gResourceNodes = nodes.data(
-        that.nodes.filter(eachNode => eachNode.type === "circle"),
-        d => d.id
-      );
-      console.log(gResourceNodes);
-      //gResourceNodes.exit().remove();
-      gResourceNodes = gResourceNodes
-        .enter()
-        .append("svg:g")
-        .attr("class", "resourceNodes")
-        .merge(gResourceNodes)
-        .call(drag);
-
-      var resourceNodes = gResourceNodes.append("svg:circle");
-      resourceNodes.attrs({ r: 30, fill: "light blue", stroke: "black" });
-*/
-
-      // bind data
-      // svg => g => g => {circle, text}
-
       let gNodeGroups = nodes.data(that.nodes, d => d.id);
       gNodeGroups.exit().remove();
       gNodeGroups = gNodeGroups
         .enter()
         .append("svg:g")
-        .attr("class", "rectTextGroup")
+        .attr("class", "nodeGroup")
         .merge(gNodeGroups)
         .call(drag);
 
-      //TODO: LAYOUT HTML BETTER & REMOVE CIRCLES
-
+      // a selection of rects, number = number of text type nodes in that.nodes
       var rect = gNodeGroups.filter(d => d.type === "text").append("svg:rect");
 
       var imgs = gNodeGroups.filter(d => d.type === "circle").append("image");
 
+      //don't append circle unless there is none, put all circles with circles, blah blah instead
       var circle = gNodeGroups
         .filter(d => d.type === "circle")
         .append("svg:circle");
