@@ -131,3 +131,49 @@ img.picture {
 .border-gradient-stop-right {
   stop-color: #009688; /* Teal */
 }
+#input2 {
+  margin: 1rem;
+  max-width: 111.5px;
+
+  border-radius: 5px;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  background: #a3a3a3;
+  border: solid 1px #404040;
+}
+
+#input1 {
+  outline: 0;
+  margin: 1rem;
+  max-width: 115px;
+  border-radius: 5px;
+  border: solid 1px #404040;
+  background: #a3a3a3;
+}
+
+.resourceForm {
+  border: solid black 1.5px;
+  border-radius: 5px;
+  max-width: 150px;
+  border-color: black;
+  background-color: #585858;
+}
+
+.resourceFormA {
+  margin-left: 1rem;
+
+  font-family: Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0px;
+  word-spacing: 0px;
+  font-weight: normal;
+  text-decoration: none;
+  font-style: normal;
+  font-variant: normal;
+  text-transform: none;
+}
+
+.formContainer {
+  margin-top: 0.75rem;
+}
