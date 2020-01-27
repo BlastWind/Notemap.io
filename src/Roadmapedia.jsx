@@ -214,7 +214,7 @@ class GraphEditor extends Component {
     // handles to link and node element groups
     let path = container.append("svg:g").selectAll("path");
     let nodes = container.append("svg:g").selectAll("g.nodeGroup");
-
+    let texts = container.append("svg:g").selectAll("g");
     let circles = container.append("svg:g").selectAll("circle");
 
     let textBox = container.append("foreignObject");
@@ -460,7 +460,9 @@ class GraphEditor extends Component {
           d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target.y +
           d.target.height / 2}`;
       });
-
+      texts.attr("transform", d => {
+        return `translate(${d.x},${d.y})`;
+      });
       nodes.attr("transform", d => {
         //if (d.type === "circle") return;
 
@@ -473,6 +475,7 @@ class GraphEditor extends Component {
       });
 
       circles.attrs({ cx: d => d.x + 75, cy: d => d.y + 20 });
+      //rects.attr({ x: d => d.x, y: d => d.y });
 
       if (textBox.attr("x"))
         //if x exists, textBox is visible, change positions
@@ -493,10 +496,8 @@ class GraphEditor extends Component {
       //TODO: selectAll as temporary solution, upgrade to difference update pattern
 
       d3.selectAll("rect.node").remove();
-      d3.selectAll("text").remove();
       d3.selectAll("g.textContainer").remove();
-      //d3.selectAll("circle").remove();
-      //
+
       //JOIN DATA
       path = path.data(that.links);
 
@@ -541,12 +542,11 @@ class GraphEditor extends Component {
       // a selection of rect
       var rect = gNodeGroups.filter(d => d.type === "text").append("svg:rect");
 
-      var imgs = gNodeGroups.filter(d => d.type === "circle").append("image");
-
       circles = circles.data(
         that.nodes.filter(eachNode => eachNode.type === "circle")
       );
       circles.exit().remove();
+
       circles = circles
         .enter()
         .append("svg:circle")
@@ -562,142 +562,15 @@ class GraphEditor extends Component {
           return "black";
         });
       circles
-        .on("mousedown", d => {
-          console.log("Mouse Downed on A Node");
-          optionGroup.attr("visibility", "hidden");
-          rect.attr("stroke", "black");
-          circles.each(function(d2) {
-            var isNewSelection = false;
-            if (d.id === d2.id) {
-              var currentStroke = d3.select(this).attr("stroke");
-              if (currentStroke === "url(#svgGradient)") {
-                d3.select(this).attr("stroke", "black");
-              } else {
-                d3.select(this).attr("stroke", "url(#svgGradient)");
-                isNewSelection = true;
-              }
-            }
-
-            if (isNewSelection) {
-              circles.each(function(d2) {
-                if (d.id !== d2.id) {
-                  d3.select(this).attr("stroke", "black");
-                }
-              });
-            }
-          });
-
-          that.mousedownNode = d;
-          that.selectedNode =
-            that.mousedownNode === that.selectedNode
-              ? null
-              : that.mousedownNode;
-          that.selectedLink = null;
-          console.log("mouse down node after mousedown", that.mousedownNode);
-        })
-        .on("mouseup", function(d) {
-          console.log("Mouse Upped on A Node");
-          if (!that.mousedownNode) return;
-
-          svg.call(
-            d3
-              .zoom()
-              .scaleExtent([0.1, 4])
-              .on("zoom", function() {
-                container.attr("transform", d3.event.transform);
-              })
-          );
-          // needed by FF
-          dragLine.classed("hidden", true).style("marker-end", "");
-
-          that.mouseupNode = d;
-          if (that.mouseupNode === that.mousedownNode) {
-            that.mousedownNode = null;
-            that.selectedNode = null;
-            return;
-          }
-
-          d3.select(this).attr("transform", "");
-
-          const source = that.mousedownNode;
-          const target = that.mouseupNode;
-
-          that.links.push({
-            source: source,
-            target: target,
-            linkDistance: 250
-          });
-
-          that.storeToHistory();
-
-          that.selectedNode = null;
-          //that.mousedownNode = null;
-          //console.log("mouseup node in mouseup()", that.mouseupNode);
-
-          restart();
-
-          //console.log("mousedown node at mouseupNode", that.mousedownNode);
-        })
-        .on("dblclick", function(circleData) {
-          //not changing circle opacity to 0 right now because form should be larger than circle
-          console.log("Double Clicked On A Node");
+        .on("mousedown", d => nodeMouseDown(d, rect, circles))
+        .on("mouseup", resourceNodeMouseUp)
+        .on("dblclick", resourceNodeDoubleClick)
+        .on("click", function() {
+          console.log("mouse clicked on a node");
           that.mousedownNode = null;
-          that.selectedNode = null;
-          that.resourceFormCircleData = circleData;
-          svg.on(".zoom", null);
-          //technically textBox can be reused since it's just a foreginOBject that can be reassigned each time
-          resourceForm = resourceForm
-            .attr("x", circleData.x)
-            .attr("y", circleData.y)
-            .attr("width", 150)
-            .attr("height", 200);
-          resourceForm
-            .append("xhtml:div")
-            .html(
-              "<div class='resourceForm'><form autocomplete='off'><div class='formContainer'><a class='resourceFormA'>Resource URL</a><input id='input1'/><br/><a class='resourceFormA'>Description</a><textarea id='input2'></textarea></div></form><button id='resourceFormSubmitButton'>yes</button><button id='resourceFormCancelButton'>cancel</button></div>"
-            );
-
-          d3.select("#resourceFormSubmitButton").on("click", function() {
-            svg.call(
-              d3
-                .zoom()
-                .scaleExtent([0.1, 4])
-                .on("zoom", function() {
-                  container.attr("transform", d3.event.transform);
-                })
-            );
-            var resourceLink = document.getElementById("input1").value;
-            circleData.resourceLink = resourceLink;
-            d3.selectAll("foreignObject").remove();
-            textBox = container.append("foreignObject");
-            resourceForm = container
-              .append("foreignObject")
-              .attr("class", "resourceForm");
-          });
-
-          d3.select("#resourceFormCancelButton").on("click", function() {
-            svg.call(
-              d3
-                .zoom()
-                .scaleExtent([0.1, 4])
-                .on("zoom", function() {
-                  container.attr("transform", d3.event.transform);
-                })
-            );
-
-            d3.selectAll("foreignObject").remove();
-            textBox = container.append("foreignObject");
-            resourceForm = container
-              .append("foreignObject")
-              .attr("class", "resourceForm");
-          });
         });
       circles.call(drag);
-      /*
-        imgs
-          .attrs({ height: 60, width: 60, x: 75, y: -10 })
-          .attr("xlink:href", "http://f1.allesedv.com/16/google.com");
-*/
+
       var textContainers = gNodeGroups
         .filter(d => d.type === "text")
         .append("svg:g")
@@ -755,10 +628,13 @@ class GraphEditor extends Component {
           console.log("mouseup node in mouseup()", that.mouseupNode);
 
           restart();
+        })
+        .on("click", function() {
+          console.log("mouse clicked on a node");
+          that.mousedownNode = null;
         });
 
       textContainers
-
         .attr("opacity", d => d.opacity)
         //.attr("text-anchor", "middle")
         .attr("dy", function(d) {
@@ -770,15 +646,16 @@ class GraphEditor extends Component {
           //we get access to widthArray
           var nwords = d.text.length;
           for (var i = 0; i < nwords; i++) {
-            var rectAndTextPair = d3.select(this).append("g");
-
-            var tspan = rectAndTextPair.append("text").html(function(d) {
-              var a = d.text[i];
-              while (a.includes(" ")) {
-                a = a.replace(" ", "&nbsp;");
-              }
-              return a;
-            });
+            var tspan = d3
+              .select(this)
+              .append("text")
+              .html(function(d) {
+                var a = d.text[i];
+                while (a.includes(" ")) {
+                  a = a.replace(" ", "&nbsp;");
+                }
+                return a;
+              });
 
             tspan.call(eachTspan => {
               //maybe there is a index, select the rect in the parent container
@@ -807,9 +684,7 @@ class GraphEditor extends Component {
             );
           });
           d.width = Math.max(...widthArray) + 50;
-          console.log("previous height", d.height);
           d.height = d.text.length * eachTextHeight + 25;
-          console.log("new height", d.text.length * eachTextHeight + 25);
         })
         .style("transform", function(d) {
           var bboxWidth = d3
@@ -914,6 +789,13 @@ class GraphEditor extends Component {
               that.nodeToChange = null;
               that.isTyping = false;
               that.textInputCircle = null;
+
+              console.log(
+                "properties after rect dblclick",
+                that.mousedownNode,
+                that.selectedNode,
+                that.mouseupNode
+              );
             })
             .on("keydown", function() {
               if (d3.event.keyCode === 13 && !d3.event.shiftKey) {
@@ -957,101 +839,8 @@ class GraphEditor extends Component {
           // unenlarge target node
           d3.select(this).attr("transform", "");
         })
-        .on("mousedown", d => {
-          console.log("Mouse Downed on A Node");
-          console.log("rects", rect);
-          optionGroup.attr("visibility", "hidden");
-          circles.attr("stroke", "black");
-          rect.each(function(d2) {
-            var isNewSelection = false;
-            if (d.id === d2.id) {
-              var currentStroke = d3.select(this).attr("stroke");
-              if (currentStroke === "url(#svgGradient)") {
-                d3.select(this).attr("stroke", "black");
-              } else {
-                d3.select(this).attr("stroke", "url(#svgGradient)");
-                isNewSelection = true;
-              }
-            }
-
-            if (isNewSelection) {
-              rect.each(function(d2) {
-                if (d.id !== d2.id) {
-                  d3.select(this).attr("stroke", "black");
-                }
-              });
-            }
-          });
-
-          circles.each(function(d2) {
-            var isNewSelection = false;
-            if (d.id === d2.id) {
-              var currentStroke = d3.select(this).attr("stroke");
-              if (currentStroke === "url(#svgGradient)") {
-                d3.select(this).attr("stroke", "black");
-              } else {
-                d3.select(this).attr("stroke", "url(#svgGradient)");
-                isNewSelection = true;
-              }
-            }
-
-            if (isNewSelection) {
-              circles.each(function(d2) {
-                if (d.id !== d2.id) {
-                  d3.select(this).attr("stroke", "black");
-                }
-              });
-            }
-          });
-
-          that.mousedownNode = d;
-          that.selectedNode =
-            that.mousedownNode === that.selectedNode
-              ? null
-              : that.mousedownNode;
-          that.selectedLink = null;
-        })
-        .on("mouseup", function(d) {
-          console.log("Mouse Upped on A Node");
-          if (!that.mousedownNode) return;
-
-          svg.call(
-            d3
-              .zoom()
-              .scaleExtent([0.1, 4])
-              .on("zoom", function() {
-                container.attr("transform", d3.event.transform);
-              })
-          );
-          // needed by FF
-          dragLine.classed("hidden", true).style("marker-end", "");
-
-          that.mouseupNode = d;
-          if (that.mouseupNode === that.mousedownNode) {
-            that.mousedownNode = null;
-            that.selectedNode = null;
-            return;
-          }
-
-          d3.select(this).attr("transform", "");
-
-          const source = that.mousedownNode;
-          const target = that.mouseupNode;
-
-          that.links.push({
-            source: source,
-            target: target,
-            linkDistance: 250
-          });
-
-          that.storeToHistory();
-
-          that.selectedNode = null;
-          that.mousedownNode = null;
-          console.log("mouseup node in mouseup()", that.mouseupNode);
-
-          restart();
-        });
+        .on("mousedown", d => nodeMouseDown(d, rect, circles))
+        .on("mouseup", resourceNodeMouseUp);
 
       nodes = gNodeGroups.merge(nodes);
 
@@ -1086,6 +875,181 @@ class GraphEditor extends Component {
 
       that.previousTransform = d3.select("g.gContainer").attr("transform");
       restart();
+    }
+
+    function resourceNodeMouseUp(d) {
+      console.log("Mouse Upped on A Node");
+      if (!that.mousedownNode) return;
+
+      svg.call(
+        d3
+          .zoom()
+          .scaleExtent([0.1, 4])
+          .on("zoom", function() {
+            container.attr("transform", d3.event.transform);
+          })
+      );
+      // needed by FF
+      dragLine.classed("hidden", true).style("marker-end", "");
+
+      that.mouseupNode = d;
+      if (that.mouseupNode === that.mousedownNode) {
+        that.mousedownNode = null;
+        that.selectedNode = null;
+        return;
+      }
+
+      const source = that.mousedownNode;
+      const target = that.mouseupNode;
+
+      that.links.push({
+        source: source,
+        target: target,
+        linkDistance: 250
+      });
+
+      that.storeToHistory();
+
+      that.selectedNode = null;
+      that.mousedownNode = null;
+      //console.log("mouseup node in mouseup()", that.mouseupNode);
+
+      restart();
+
+      //console.log("mousedown node at mouseupNode", that.mousedownNode);
+      console.log(
+        "properties after circle mouse up",
+        that.mousedownNode,
+        that.selectedNode,
+        that.mouseupNode
+      );
+    }
+
+    function resourceNodeDoubleClick(circleData) {
+      //not changing circle opacity to 0 right now because form should be larger than circle
+      console.log("Double Clicked On A Node");
+      that.mousedownNode = null;
+      that.selectedNode = null;
+      that.resourceFormCircleData = circleData;
+      svg.on(".zoom", null);
+      //technically textBox can be reused since it's just a foreginOBject that can be reassigned each time
+      resourceForm = resourceForm
+        .attr("x", circleData.x)
+        .attr("y", circleData.y)
+        .attr("width", 150)
+        .attr("height", 200);
+      resourceForm
+        .append("xhtml:div")
+        .html(
+          "<div class='resourceForm'><form autocomplete='off'><div class='formContainer'><a class='resourceFormA'>Resource URL</a><input id='input1'/><br/><a class='resourceFormA'>Description</a><textarea id='input2'></textarea></div></form><button id='resourceFormSubmitButton'>yes</button><button id='resourceFormCancelButton'>cancel</button></div>"
+        );
+
+      d3.select("#resourceFormSubmitButton").on("click", function() {
+        svg.call(
+          d3
+            .zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", function() {
+              container.attr("transform", d3.event.transform);
+            })
+        );
+        var resourceLink = document.getElementById("input1").value;
+        circleData.resourceLink = resourceLink;
+        d3.selectAll("foreignObject").remove();
+        textBox = container.append("foreignObject");
+        resourceForm = container
+          .append("foreignObject")
+          .attr("class", "resourceForm");
+
+        console.log(
+          "properties after circle dblclick",
+          that.mousedownNode,
+          that.selectedNode,
+          that.mouseupNode
+        );
+      });
+
+      d3.select("#resourceFormCancelButton").on("click", function() {
+        svg.call(
+          d3
+            .zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", function() {
+              container.attr("transform", d3.event.transform);
+            })
+        );
+
+        d3.selectAll("foreignObject").remove();
+        textBox = container.append("foreignObject");
+        resourceForm = container
+          .append("foreignObject")
+          .attr("class", "resourceForm");
+      });
+    }
+
+    function nodeMouseDown(d, rect, circles) {
+      console.log("Mouse Downed on A Node");
+
+      optionGroup.attr("visibility", "hidden");
+      if (d.type === "circle") {
+        rect.attr("stroke", "black");
+      } else {
+        circles.attr("stroke", "black");
+      }
+
+      rect.each(function(d2) {
+        var isNewSelection = false;
+        if (d.id === d2.id) {
+          var currentStroke = d3.select(this).attr("stroke");
+          if (currentStroke === "url(#svgGradient)") {
+            d3.select(this).attr("stroke", "black");
+          } else {
+            d3.select(this).attr("stroke", "url(#svgGradient)");
+            isNewSelection = true;
+          }
+        }
+
+        if (isNewSelection) {
+          rect.each(function(d2) {
+            if (d.id !== d2.id) {
+              d3.select(this).attr("stroke", "black");
+            }
+          });
+        }
+      });
+
+      circles.each(function(d2) {
+        var isNewSelection = false;
+        if (d.id === d2.id) {
+          var currentStroke = d3.select(this).attr("stroke");
+          if (currentStroke === "url(#svgGradient)") {
+            d3.select(this).attr("stroke", "black");
+          } else {
+            d3.select(this).attr("stroke", "url(#svgGradient)");
+            isNewSelection = true;
+          }
+        }
+
+        if (isNewSelection) {
+          circles.each(function(d2) {
+            if (d.id !== d2.id) {
+              d3.select(this).attr("stroke", "black");
+            }
+          });
+        }
+      });
+
+      that.mousedownNode = d;
+      that.selectedNode =
+        that.mousedownNode === that.selectedNode ? null : that.mousedownNode;
+      that.selectedLink = null;
+
+      console.log(
+        "properties after rect mouse down",
+        that.mousedownNode,
+        that.selectedNode,
+        that.mouseupNode
+      );
     }
 
     //sensing svg click
@@ -1141,10 +1105,9 @@ class GraphEditor extends Component {
       console.log("Mouse Up in window");
       //console.log("svg mouseup", "mousedown node", that.mousedownNode);
 
-      if (that.mousedownNode) {
-        // hide drag line
+      // hide drag line
+      if (that.mousedownNode)
         dragLine.classed("hidden", true).style("marker-end", "");
-      }
 
       // because :active only works in WebKit?
       svg.classed("active", false);
