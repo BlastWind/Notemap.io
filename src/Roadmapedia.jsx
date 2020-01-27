@@ -213,11 +213,10 @@ class GraphEditor extends Component {
 
     // handles to link and node element groups
     let path = container.append("svg:g").selectAll("path");
-    let nodes = container
-      .append("svg:g")
-      .selectAll("g.nodeGroup")
+    let nodes = container.append("svg:g").selectAll("g.nodeGroup");
 
-      .on("mousedown", function(d) {});
+    let circles = container.append("svg:g").selectAll("circle");
+
     let textBox = container.append("foreignObject");
     let resourceForm = container
       .append("foreignObject")
@@ -473,6 +472,8 @@ class GraphEditor extends Component {
         return `translate(${d.x},${d.y})`;
       });
 
+      circles.attrs({ cx: d => d.x + 75, cy: d => d.y + 20 });
+
       if (textBox.attr("x"))
         //if x exists, textBox is visible, change positions
         textBox
@@ -494,6 +495,7 @@ class GraphEditor extends Component {
       d3.selectAll("rect.node").remove();
       d3.selectAll("text").remove();
       d3.selectAll("g.textContainer").remove();
+      //d3.selectAll("circle").remove();
       //
       //JOIN DATA
       path = path.data(that.links);
@@ -536,17 +538,21 @@ class GraphEditor extends Component {
         .merge(gNodeGroups)
         .call(drag);
 
-      // a selection of rects, number = number of text type nodes in that.nodes
+      // a selection of rect
       var rect = gNodeGroups.filter(d => d.type === "text").append("svg:rect");
 
       var imgs = gNodeGroups.filter(d => d.type === "circle").append("image");
 
-      //don't append circle unless there is none, put all circles with circles, blah blah instead
-      var circle = gNodeGroups
-        .filter(d => d.type === "circle")
-        .append("svg:circle");
+      circles = circles.data(
+        that.nodes.filter(eachNode => eachNode.type === "circle")
+      );
+      circles.exit().remove();
+      circles = circles
+        .enter()
+        .append("svg:circle")
+        .merge(circles);
 
-      circle
+      circles
         .attrs({ r: 30, cx: 75, cy: 20, fill: "white" })
         .style("stroke-width", 2)
         .attr("stroke", function(d) {
@@ -555,12 +561,12 @@ class GraphEditor extends Component {
           }
           return "black";
         });
-      circle
+      circles
         .on("mousedown", d => {
           console.log("Mouse Downed on A Node");
           optionGroup.attr("visibility", "hidden");
           rect.attr("stroke", "black");
-          circle.each(function(d2) {
+          circles.each(function(d2) {
             var isNewSelection = false;
             if (d.id === d2.id) {
               var currentStroke = d3.select(this).attr("stroke");
@@ -573,7 +579,7 @@ class GraphEditor extends Component {
             }
 
             if (isNewSelection) {
-              circle.each(function(d2) {
+              circles.each(function(d2) {
                 if (d.id !== d2.id) {
                   d3.select(this).attr("stroke", "black");
                 }
@@ -587,6 +593,7 @@ class GraphEditor extends Component {
               ? null
               : that.mousedownNode;
           that.selectedLink = null;
+          console.log("mouse down node after mousedown", that.mousedownNode);
         })
         .on("mouseup", function(d) {
           console.log("Mouse Upped on A Node");
@@ -624,10 +631,12 @@ class GraphEditor extends Component {
           that.storeToHistory();
 
           that.selectedNode = null;
-          that.mousedownNode = null;
-          console.log("mouseup node in mouseup()", that.mouseupNode);
+          //that.mousedownNode = null;
+          //console.log("mouseup node in mouseup()", that.mouseupNode);
 
           restart();
+
+          //console.log("mousedown node at mouseupNode", that.mousedownNode);
         })
         .on("dblclick", function(circleData) {
           //not changing circle opacity to 0 right now because form should be larger than circle
@@ -683,7 +692,7 @@ class GraphEditor extends Component {
               .attr("class", "resourceForm");
           });
         });
-
+      circles.call(drag);
       /*
         imgs
           .attrs({ height: 60, width: 60, x: 75, y: -10 })
@@ -952,7 +961,7 @@ class GraphEditor extends Component {
           console.log("Mouse Downed on A Node");
           console.log("rects", rect);
           optionGroup.attr("visibility", "hidden");
-          circle.attr("stroke", "black");
+          circles.attr("stroke", "black");
           rect.each(function(d2) {
             var isNewSelection = false;
             if (d.id === d2.id) {
@@ -974,7 +983,7 @@ class GraphEditor extends Component {
             }
           });
 
-          circle.each(function(d2) {
+          circles.each(function(d2) {
             var isNewSelection = false;
             if (d.id === d2.id) {
               var currentStroke = d3.select(this).attr("stroke");
@@ -987,7 +996,7 @@ class GraphEditor extends Component {
             }
 
             if (isNewSelection) {
-              circle.each(function(d2) {
+              circles.each(function(d2) {
                 if (d.id !== d2.id) {
                   d3.select(this).attr("stroke", "black");
                 }
@@ -1085,6 +1094,7 @@ class GraphEditor extends Component {
       optionGroup.attr("visibility", "hidden");
 
       if (d3.event.ctrlKey && !that.mousedownNode) {
+        console.log("mouse down node at ctrl click", that.mousedownNode);
         that.selectedNode = null;
         //TODO: run a function that updates circles & rectangles to their appropriate colors
 
