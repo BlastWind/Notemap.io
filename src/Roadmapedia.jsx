@@ -216,6 +216,7 @@ class GraphEditor extends Component {
     let nodes = container.append("svg:g").selectAll("g.nodeGroup");
     let texts = container.append("svg:g").selectAll("g");
     let circles = container.append("svg:g").selectAll("circle");
+    let images = container.append("svg:g").selectAll("images");
 
     let textBox = container.append("foreignObject");
     let resourceForm = container
@@ -464,8 +465,6 @@ class GraphEditor extends Component {
         return `translate(${d.x},${d.y})`;
       });
       nodes.attr("transform", d => {
-        //if (d.type === "circle") return;
-
         if (that.textInputCircle)
           if (d.id === that.textInputCircle.id) {
             that.textInputCircle.x = d.x;
@@ -475,7 +474,7 @@ class GraphEditor extends Component {
       });
 
       circles.attrs({ cx: d => d.x + 75, cy: d => d.y + 20 });
-      //rects.attr({ x: d => d.x, y: d => d.y });
+      images.attrs({ x: d => d.x + 50, y: d => d.y - 5 });
 
       if (textBox.attr("x"))
         //if x exists, textBox is visible, change positions
@@ -564,12 +563,56 @@ class GraphEditor extends Component {
       circles
         .on("mousedown", d => nodeMouseDown(d, rect, circles))
         .on("mouseup", resourceNodeMouseUp)
-        .on("dblclick", resourceNodeDoubleClick)
-        .on("click", function() {
-          console.log("mouse clicked on a node");
-          that.mousedownNode = null;
-        });
+        .on("dblclick", resourceNodeDoubleClick);
+
       circles.call(drag);
+
+      images = images.data(
+        that.nodes.filter(eachNode => eachNode.type === "circle")
+      );
+
+      images.exit().remove();
+      images = images
+        .enter()
+        .append("svg:image")
+        .merge(images);
+      images
+        .attrs({ width: 50, height: 50 })
+        .on("error", function() {
+          /*
+          console.log("there is error");
+          d3.select(this).attr(
+            "xlink:href",
+            "https://i.pinimg.com/originals/62/92/ac/6292acc41b9b3d21015e88b8aabbfa33.jpg"
+          );
+
+*/
+        })
+        .attr("xlink:href", function(d) {
+          if (d.resourceLink) {
+            /*
+            var img = new Image();
+
+            img.onload = function() {
+              console.log("img", img, img.src);
+            };
+
+            img.src =
+              "https://icons.duckduckgo.com/ip2/" + d.resourceLink + ".ico";
+          }
+*/
+
+            return (
+              "https://icons.duckduckgo.com/ip2/" + d.resourceLink + ".ico"
+            );
+          }
+        })
+
+        .on("mousedown", d => nodeMouseDown(d, rect, circles))
+        .on("mouseup", resourceNodeMouseUp)
+        .on("dblclick", resourceNodeDoubleClick);
+
+      images.call(drag);
 
       var textContainers = gNodeGroups
         .filter(d => d.type === "text")
@@ -589,50 +632,7 @@ class GraphEditor extends Component {
           //can't restart, if restart dblclick can't be detected
           //restart();
         })
-        .on("mouseup", function(d) {
-          if (!that.mousedownNode) return;
-
-          svg.call(
-            d3
-              .zoom()
-              .scaleExtent([0.1, 4])
-              .on("zoom", function() {
-                container.attr("transform", d3.event.transform);
-              })
-          );
-          // needed by FF
-          dragLine.classed("hidden", true).style("marker-end", "");
-
-          that.mouseupNode = d;
-          if (that.mouseupNode === that.mousedownNode) {
-            that.mousedownNode = null;
-            that.selectedNode = null;
-            return;
-          }
-
-          d3.select(this).attr("transform", "");
-
-          const source = that.mousedownNode;
-          const target = that.mouseupNode;
-
-          that.links.push({
-            source: source,
-            target: target,
-            linkDistance: 250
-          });
-
-          that.storeToHistory();
-
-          that.selectedNode = null;
-          that.mousedownNode = null;
-          console.log("mouseup node in mouseup()", that.mouseupNode);
-
-          restart();
-        })
-        .on("click", function() {
-          console.log("mouse clicked on a node");
-          that.mousedownNode = null;
-        });
+        .on("mouseup", d => resourceNodeMouseUp(d));
 
       textContainers
         .attr("opacity", d => d.opacity)
@@ -717,128 +717,7 @@ class GraphEditor extends Component {
           }
           return "black";
         })
-        .on("dblclick", function(rectData) {
-          console.log("Double Clicked On A Node");
-          that.mousedownNode = null;
-          that.selectedNode = null;
-          rectOnClickSetUp(
-            that.isTyping,
-            that.selectedNode,
-            svg,
-            that.startText,
-            rectData
-          );
-          rectOnClickBlurCurrentText(that.nodes, restart, rectData);
-          that.textInputCircle = rectData;
-
-          textBox = textBox
-            .attr("x", rectData.x)
-            .attr("y", rectData.y)
-            .attr("width", window.innerWidth / 2)
-            .attr("height", window.innerHeight);
-          var paragraph = textBox
-            .append("xhtml:p")
-            .html(() => textArrToHTML(rectData.text))
-            .attr("contentEditable", "true")
-
-            .attr("spellcheck", false)
-            .attr("width", window.innerWidth / 2)
-            .style("width", window.innerWidth / 2)
-            .style("outline", 0)
-            .style("font", "12px sans-serif")
-            .style("display", "block");
-
-          paragraph
-            .on("blur", function() {
-              svg.call(
-                d3
-                  .zoom()
-                  .scaleExtent([0.1, 4])
-                  .on("zoom", function() {
-                    container.attr("transform", d3.event.transform);
-                  })
-              );
-              d3.selectAll("foreignObject").remove();
-              textBox = container.append("foreignObject");
-              resourceForm = container
-                .append("foreignObject")
-                .attr("id", "resourceForm");
-              that.nodes.map(eachNode => {
-                if (eachNode.id === that.textInputCircle.id) {
-                  eachNode.opacity = 1;
-                  restart();
-                }
-              });
-
-              var oldNodes = that.history[that.historyStep].nodes;
-
-              var matchedNode = oldNodes.filter(eachNode => {
-                return eachNode.id === rectData.id;
-              });
-
-              //TODO: if text isn't the same or the node is brand new, store to history
-              //on add new node, notNewNode is false
-              //on dblclick, blur, notNewNode is true
-              if (that.startText !== rectData.text) {
-                that.nodeToChange = rectData;
-                //console.log("starttext");
-                that.storeToHistory();
-              }
-
-              that.startText = null;
-              that.nodeToChange = null;
-              that.isTyping = false;
-              that.textInputCircle = null;
-
-              console.log(
-                "properties after rect dblclick",
-                that.mousedownNode,
-                that.selectedNode,
-                that.mouseupNode
-              );
-            })
-            .on("keydown", function() {
-              if (d3.event.keyCode === 13 && !d3.event.shiftKey) {
-                d3.event.preventDefault();
-              }
-            })
-            .on("keyup", function() {
-              if (d3.event.keyCode === 13 && !d3.event.shiftKey) {
-                this.blur();
-              } else {
-                var node = d3.select(this).node();
-                // note, d.text is referring to the d in dblclick, d in g, d in text, from that.nodes
-                var nodeHTML = d3.select(this).node().innerHTML;
-
-                nodeHTML = nodeHTML.slice(3, nodeHTML.length - 4);
-
-                if (
-                  nodeHTML.substring(nodeHTML.length - 4, nodeHTML.length) ===
-                  "<br>"
-                ) {
-                  nodeHTML = nodeHTML.slice(0, nodeHTML.length - 4);
-                }
-
-                var textArr = nodeHTML.split("<br>");
-                rectData.text = textArr;
-
-                restart();
-              }
-            });
-
-          paragraph.node().focus();
-        })
-        .on("mouseover", function(d) {
-          if (!d3.event.ctrlKey) return;
-          if (!that.mousedownNode || d === that.mousedownNode) return;
-          // enlarge target node
-          //d3.select(this).attr("transform", "scale(1.1) translate(-50, 0)");
-        })
-        .on("mouseout", function(d) {
-          if (!that.mousedownNode || d === that.mousedownNode) return;
-          // unenlarge target node
-          d3.select(this).attr("transform", "");
-        })
+        .on("dblclick", d => textNodeDblClick(d))
         .on("mousedown", d => nodeMouseDown(d, rect, circles))
         .on("mouseup", resourceNodeMouseUp);
 
@@ -875,6 +754,118 @@ class GraphEditor extends Component {
 
       that.previousTransform = d3.select("g.gContainer").attr("transform");
       restart();
+    }
+
+    function textNodeDblClick(rectData) {
+      console.log("Double Clicked On A Node");
+      that.mousedownNode = null;
+      that.selectedNode = null;
+      rectOnClickSetUp(
+        that.isTyping,
+        that.selectedNode,
+        svg,
+        that.startText,
+        rectData
+      );
+      rectOnClickBlurCurrentText(that.nodes, restart, rectData);
+      that.textInputCircle = rectData;
+
+      textBox = textBox
+        .attr("x", rectData.x)
+        .attr("y", rectData.y)
+        .attr("width", window.innerWidth / 2)
+        .attr("height", window.innerHeight);
+      var paragraph = textBox
+        .append("xhtml:p")
+        .html(() => textArrToHTML(rectData.text))
+        .attr("contentEditable", "true")
+
+        .attr("spellcheck", false)
+        .attr("width", window.innerWidth / 2)
+        .style("width", window.innerWidth / 2)
+        .style("outline", 0)
+        .style("font", "12px sans-serif")
+        .style("display", "block");
+
+      paragraph
+        .on("blur", function() {
+          svg.call(
+            d3
+              .zoom()
+              .scaleExtent([0.1, 4])
+              .on("zoom", function() {
+                container.attr("transform", d3.event.transform);
+              })
+          );
+          d3.selectAll("foreignObject").remove();
+          textBox = container.append("foreignObject");
+          resourceForm = container
+            .append("foreignObject")
+            .attr("id", "resourceForm");
+          that.nodes.map(eachNode => {
+            if (eachNode.id === that.textInputCircle.id) {
+              eachNode.opacity = 1;
+              restart();
+            }
+          });
+
+          var oldNodes = that.history[that.historyStep].nodes;
+
+          var matchedNode = oldNodes.filter(eachNode => {
+            return eachNode.id === rectData.id;
+          });
+
+          //TODO: if text isn't the same or the node is brand new, store to history
+          //on add new node, notNewNode is false
+          //on dblclick, blur, notNewNode is true
+          if (that.startText !== rectData.text) {
+            that.nodeToChange = rectData;
+            //console.log("starttext");
+            that.storeToHistory();
+          }
+
+          that.startText = null;
+          that.nodeToChange = null;
+          that.isTyping = false;
+          that.textInputCircle = null;
+
+          console.log(
+            "properties after rect dblclick",
+            that.mousedownNode,
+            that.selectedNode,
+            that.mouseupNode
+          );
+        })
+        .on("keydown", function() {
+          if (d3.event.keyCode === 13 && !d3.event.shiftKey) {
+            d3.event.preventDefault();
+          }
+        })
+        .on("keyup", function() {
+          if (d3.event.keyCode === 13 && !d3.event.shiftKey) {
+            this.blur();
+          } else {
+            var node = d3.select(this).node();
+            // note, d.text is referring to the d in dblclick, d in g, d in text, from that.nodes
+            var nodeHTML = d3.select(this).node().innerHTML;
+
+            nodeHTML = nodeHTML.slice(3, nodeHTML.length - 4);
+
+            if (
+              nodeHTML.substring(nodeHTML.length - 4, nodeHTML.length) ===
+              "<br>"
+            ) {
+              nodeHTML = nodeHTML.slice(0, nodeHTML.length - 4);
+            }
+
+            var textArr = nodeHTML.split("<br>");
+            rectData.text = textArr;
+
+            restart();
+          }
+        });
+
+      paragraph.node().focus();
     }
 
     function resourceNodeMouseUp(d) {
@@ -961,12 +952,7 @@ class GraphEditor extends Component {
           .append("foreignObject")
           .attr("class", "resourceForm");
 
-        console.log(
-          "properties after circle dblclick",
-          that.mousedownNode,
-          that.selectedNode,
-          that.mouseupNode
-        );
+        restart();
       });
 
       d3.select("#resourceFormCancelButton").on("click", function() {
