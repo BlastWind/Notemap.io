@@ -43,8 +43,8 @@ class GraphEditor extends Component {
 
     this.history = [
       {
-        nodes: [...initialNodes],
-        links: [...initialLinks]
+        nodes: JSON.stringify([...initialNodes]),
+        links: JSON.stringify([...initialLinks])
       }
     ];
     this.txtHistory = [];
@@ -67,19 +67,16 @@ class GraphEditor extends Component {
   }
 
   storeToHistory() {
+    console.log("stored to history");
     this.history = this.history.slice(0, this.historyStep + 1);
 
     var newStep = {
-      nodes: [...this.nodes],
-      links: [...this.links],
-      nodeToChangeID: this.nodeToChange ? this.nodeToChange.id : -1,
-      texts: {
-        undoTo: this.startText,
-        redoTo: this.nodeToChange ? this.nodeToChange.text : null
-      }
+      nodes: JSON.stringify(this.nodes),
+      links: JSON.stringify(this.links)
     };
     this.history = this.history.concat([newStep]);
     this.historyStep += 1;
+    console.log("total history", this.history);
   }
 
   componentDidMount() {
@@ -274,8 +271,8 @@ class GraphEditor extends Component {
           const target = node;
 
           that.links.push({
-            source: source,
-            target: target,
+            source: source.id,
+            target: target.id,
             linkDistance:
               node.x - that.selectedNode.x > 250
                 ? node.x - that.selectedNode.x
@@ -348,8 +345,8 @@ class GraphEditor extends Component {
           const target = node;
 
           that.links.push({
-            source: source,
-            target: target,
+            source: source.id,
+            target: target.id,
             linkDistance:
               node.x - that.selectedNode.x > 250
                 ? node.x - that.selectedNode.x
@@ -457,6 +454,15 @@ class GraphEditor extends Component {
           });
         }
 
+        //WARNING: TURNS OUT, AFTER WE PUT IN FORCE.NODES AND ALL THAT, D.X & D.Y STOP CHANGING
+        console.log(
+          "path is being evaluated",
+          `M${d.source.x + d.source.width / 2},${d.source.y +
+            d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target
+            .y +
+            d.target.height / 2}`
+        );
+
         return `M${d.source.x + d.source.width / 2},${d.source.y +
           d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target.y +
           d.target.height / 2}`;
@@ -496,9 +502,10 @@ class GraphEditor extends Component {
 
       d3.selectAll("rect.node").remove();
       d3.selectAll("g.textContainer").remove();
-
       //JOIN DATA
       path = path.data(that.links);
+
+      console.log(path);
 
       // update existing that.links
       path
@@ -512,9 +519,11 @@ class GraphEditor extends Component {
       path = path
         .enter()
         .append("svg:path")
-        .attr("class", "link")
+        .attr("class", "connector")
         .classed("selected", d => d === that.selectedLink)
         .style("marker-end", "url(#end-arrow)")
+        .style("stroke", "black")
+        .style("stroke-width", 1.5)
         .on("mousedown", d => {
           if (d3.event.ctrlKey) return;
 
@@ -528,6 +537,8 @@ class GraphEditor extends Component {
           restart();
         })
         .merge(path);
+
+      console.log(path);
 
       let gNodeGroups = nodes.data(that.nodes, d => d.id);
       gNodeGroups.exit().remove();
@@ -724,6 +735,15 @@ class GraphEditor extends Component {
       nodes = gNodeGroups.merge(nodes);
 
       that.force.nodes(that.nodes);
+      that.force.force(
+        "link",
+        d3
+          .forceLink(that.links)
+          .id(d => d.id)
+          .distance(function(d) {
+            return d.linkDistance;
+          })
+      );
 
       that.force.alphaTarget(0.3).restart();
     }
@@ -809,12 +829,6 @@ class GraphEditor extends Component {
             }
           });
 
-          var oldNodes = that.history[that.historyStep].nodes;
-
-          var matchedNode = oldNodes.filter(eachNode => {
-            return eachNode.id === rectData.id;
-          });
-
           //TODO: if text isn't the same or the node is brand new, store to history
           //on add new node, notNewNode is false
           //on dblclick, blur, notNewNode is true
@@ -894,9 +908,10 @@ class GraphEditor extends Component {
       const target = that.mouseupNode;
 
       that.links.push({
-        source: source,
-        target: target,
-        linkDistance: 250
+        source: source.id,
+        target: target.id,
+        linkDistance: 250,
+        index: that.links.length
       });
 
       that.storeToHistory();
@@ -1118,25 +1133,8 @@ class GraphEditor extends Component {
           if (that.historyStep !== that.history.length - 1) {
             that.historyStep += 1;
 
-            that.nodes = [...that.history[that.historyStep].nodes];
-
-            //apply the text
-            if (
-              that.history[that.historyStep].nodeToChangeID !== -1 &&
-              that.history[that.historyStep].texts.redoTo
-            ) {
-              that.nodes.map(eachNode => {
-                if (
-                  eachNode.id === that.history[that.historyStep].nodeToChangeID
-                ) {
-                  eachNode.text = JSON.parse(
-                    JSON.stringify(that.history[that.historyStep].texts.redoTo)
-                  );
-                }
-              });
-            }
-
-            that.links = [...that.history[that.historyStep].links];
+            that.nodes = JSON.parse(that.history[that.historyStep].nodes);
+            that.links = JSON.parse(that.history[that.historyStep].links);
 
             restart();
           }
@@ -1144,30 +1142,18 @@ class GraphEditor extends Component {
           //UNDO
           if (that.historyStep !== 0) {
             that.historyStep -= 1;
+            var historyNodes = JSON.parse(that.history[that.historyStep].nodes);
 
-            that.nodes = [...that.history[that.historyStep].nodes];
+            //  that.links = JSON.parse(that.history[that.historyStep].links);
 
-            //apply the text
-            if (
-              that.history[that.historyStep + 1].nodeToChangeID !== -1 &&
-              that.history[that.historyStep + 1].texts.undoTo
-            ) {
-              that.nodes.map(eachNode => {
-                if (
-                  eachNode.id ===
-                  that.history[that.historyStep + 1].nodeToChangeID
-                ) {
-                  eachNode.text = JSON.parse(
-                    JSON.stringify(
-                      that.history[that.historyStep + 1].texts.undoTo
-                    )
-                  );
-                }
-              });
-            }
+            //GET RID OF ATTRIBUTES OTHER THAN X, Y, AND BASIC NODE INFORMATION
 
-            that.links = [...that.history[that.historyStep].links];
+            //get similarity between arrays
+            //update that.nodes to the x & y we have currently
+            //O(n^2)
 
+            that.nodes.pop();
+            that.links.pop();
             restart();
           }
         }
