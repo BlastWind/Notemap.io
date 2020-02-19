@@ -9,6 +9,11 @@ import "./GraphEditor.css";
 import notFocused from "./svgs/network.svg";
 import focused from "./svgs/network_purple.svg";
 import manual from "./svgs/manual.svg";
+import close from "./svgs/close.svg";
+import check from "./svgs/check.svg";
+import preview from "./svgs/preview.svg";
+import preview_purple from "./svgs/preview_purple.svg";
+import open_new_tab from "./svgs/open_new_tab.png";
 import {
   rectOnClickSetUp,
   rectOnClickBlurCurrentText
@@ -17,7 +22,20 @@ import alphabetT from "./svgs/t-alphabet.svg";
 import alphabetTPurple from "./svgs/t-alphabet-purple.svg";
 import link from "./svgs/link.svg";
 import purpleLink from "./svgs/purpleLink.svg";
-import { textArrToHTML } from "./RoadmapediaHelperFunctions.js";
+import { textArrToHTML } from "./helperFunctions/StringHelperFunctions.js";
+import {
+  getTranslateString,
+  pureDecodeTranslate,
+  decodeTranslateString,
+  translateFromCenterToDefault,
+  translateToDefault,
+  translateBackLastMoved,
+  transformCloseCurrentNode,
+  transformOpenCurrentNode,
+  updateBasePeriod,
+  makeTransitionNodeData
+} from "./helperFunctions/TransitionNodesHelperFunctions.js";
+
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
 const initialNodes = [];
@@ -47,11 +65,22 @@ class GraphEditor extends Component {
         links: JSON.stringify([...initialLinks])
       }
     ];
-    this.txtHistory = [];
     this.historyStep = 0;
     this.previousTransform = null;
 
     this.isDragging = false;
+    this.isTyping = false;
+
+    this.shouldTransitionGsAnimate = true;
+    this.animationAlreadyCompleted = false;
+    this.shouldTransitionGsEnterAnimation = true;
+  }
+
+  storeToHistory(command) {
+    this.history = this.history.slice(0, this.historyStep + 1);
+    this.history = this.history.concat([command]);
+    this.historyStep += 1;
+    console.log(this.history);
   }
 
   updateEntire() {
@@ -66,21 +95,9 @@ class GraphEditor extends Component {
     this.force.restart();
   }
 
-  storeToHistory() {
-    console.log("stored to history");
-    this.history = this.history.slice(0, this.historyStep + 1);
-
-    var newStep = {
-      nodes: JSON.stringify(this.nodes),
-      links: JSON.stringify(this.links)
-    };
-    this.history = this.history.concat([newStep]);
-    this.historyStep += 1;
-    console.log("total history", this.history);
-  }
-
   componentDidMount() {
     d3.select("#focusIcon").on("click", toggleFocus);
+    d3.select("#previewIcon").on("click", togglePreview);
     var that = this;
 
     var GraphEditor = d3.select("div#editorsContainer");
@@ -186,7 +203,6 @@ class GraphEditor extends Component {
         d.fy = null;
         that.isDragging = false;
         resetMouseVars();
-        console.log("Drag Ended");
       });
     var container = svg
       .on("mousedown", mousedown)
@@ -212,21 +228,36 @@ class GraphEditor extends Component {
     let path = container.append("svg:g").selectAll("path");
     let nodes = container.append("svg:g").selectAll("g.nodeGroup");
     let texts = container.append("svg:g").selectAll("g");
+    let circleGroups = container.append("svg:g").selectAll("g");
+
+    /* change1:
     let circles = container.append("svg:g").selectAll("circle");
     let images = container.append("svg:g").selectAll("images");
+    let linkCircles = container.append("svg:g").selectAll("image");
+    let clipPaths = container.append("svg:defs").selectAll("clipPath");
+
+*/
 
     let textBox = container.append("foreignObject");
     let resourceForm = container
       .append("foreignObject")
       .attr("class", "resourceForm");
-    let optionGroup = container.append("g").attr("visibility", "hidden");
+    let optionGroup = container
+      .append("g")
+      .attr("opacity", 0)
+      .attr("visibility", "hidden");
+
+    let optionGroupG = optionGroup
+      .append("g")
+      .attr("transform", getTranslateString(0, 0));
+
+    let optionG = container.append("g").attr("class", "optionG");
 
     var optionGroupConnector = optionGroup
-      .append("line")
-      .attrs({ x1: -100, y1: 25, x2: 7.5, y2: 25, stroke: "black" })
-      .style("stroke-width", 4);
+      .append("rect")
+      .attrs({ height: 3, width: 0, x: -10, y: 25, stroke: "black" });
 
-    var optionGroupRect = optionGroup
+    var optionGroupRect = optionGroupG
       .append("g")
       .append("rect")
       .attrs({
@@ -240,7 +271,7 @@ class GraphEditor extends Component {
       })
       .style("stroke-width", 2);
 
-    var optionGroupT = optionGroup
+    var optionGroupT = optionGroupG
       .append("image")
       .attr("xlink:href", alphabetT)
       .attrs({ width: 50, height: 50, x: 75 })
@@ -251,9 +282,15 @@ class GraphEditor extends Component {
         d3.select(this).attr("xlink:href", alphabetT);
       })
       .on("click", function(d) {
-        optionGroup.attr("visibility", "hidden");
-        optionGroupConnector.attr("visibility", "hidden");
-        if (that.selectedNode) {
+        optionGroup
+          .transition()
+          .duration(300)
+          .attr("opacity", 0);
+        if (that.inConnectMode) {
+          console.log("in connect mode!");
+          optionGroup.attr("opacity", 0);
+          optionGroupConnector.attr("width", 0);
+          optionGroupG.attr("transform", getTranslateString(0, 0));
           const node = {
             type: "text",
             id: that.nodes.length,
@@ -269,25 +306,36 @@ class GraphEditor extends Component {
           restart();
           const source = that.selectedNode;
           const target = node;
-
-          that.links.push({
-            source: source.id,
-            target: target.id,
+          var link = {
+            source: source,
+            target: target,
             linkDistance:
               node.x - that.selectedNode.x > 250
                 ? node.x - that.selectedNode.x
                 : 250,
             index: that.links.length
-          });
+          };
+          that.links.push(link);
+
+          var command = {
+            action: { type: "addNodeLink", node: node, links: [link] },
+            inverse: { type: "delNodeLink", node: node, links: [link] }
+          };
+
+          that.storeToHistory(command);
+
           //not triggering doubleclicking prohibits force from calculating x & y properly?
           var toDispatch = d3
             .selectAll("rect.node")
             .filter(function(d, i, list) {
               return i === list.length - 1;
             });
+          toDispatch.dispatch("click");
           toDispatch.dispatch("dblclick");
-          that.selectedNode = that.nodes[that.nodes.length - 1];
+
           restart();
+          // update stroke after restart because
+          // update stroke will be selecting new elems
         } else {
           const node = {
             type: "text",
@@ -300,24 +348,31 @@ class GraphEditor extends Component {
           };
           that.point = null;
           that.nodes.push(node);
+          var command = {
+            action: { type: "addNode", node: node },
+            inverse: { type: "delNode", node: node }
+          };
+          that.storeToHistory(command);
+
           restart();
           var toDispatch = d3
             .selectAll("rect.node")
             .filter(function(d, i, list) {
               return i === list.length - 1;
             });
+          toDispatch.dispatch("click");
           toDispatch.dispatch("dblclick");
-          that.selectedNode = that.nodes[that.nodes.length - 1];
+
           restart();
         }
       });
 
-    var optionGroupBorder = optionGroup
+    var optionGroupBorder = optionGroupG
       .append("line")
       .attrs({ x1: 57.5, y1: 9, x2: 57.5, y2: 42, stroke: "black" })
       .attr("stroke-width", 2);
 
-    var optionGroupLink = optionGroup
+    var optionGroupLink = optionGroupG
       .append("image")
       .on("mouseover", function() {
         d3.select(this).attr("xlink:href", purpleLink);
@@ -326,9 +381,16 @@ class GraphEditor extends Component {
         d3.select(this).attr("xlink:href", link);
       })
       .on("click", function(d) {
-        optionGroup.attr("visibility", "hidden");
-        optionGroupConnector.attr("visibility", "hidden");
-        if (that.selectedNode) {
+        optionGroup
+          .transition()
+          .duration(300)
+          .attr("opacity", 0);
+
+        if (that.inConnectMode) {
+          console.log("in connect mode!");
+          optionGroup.attr("opacity", 0);
+          optionGroupConnector.attr("width", 0);
+          optionGroupG.attr("transform", getTranslateString(0, 0));
           const node = {
             type: "circle",
             id: that.nodes.length,
@@ -336,7 +398,12 @@ class GraphEditor extends Component {
             height: 40,
             text: [""],
             x: that.selectedNode.x + that.selectedNode.width + 100,
-            y: that.selectedNode.y
+            y: that.selectedNode.y,
+            storedInfo: {
+              url: null,
+              info: null,
+              picture: null
+            }
           };
           that.point = null;
           that.nodes.push(node);
@@ -344,23 +411,34 @@ class GraphEditor extends Component {
           const source = that.selectedNode;
           const target = node;
 
-          that.links.push({
-            source: source.id,
-            target: target.id,
+          var link = {
+            source: source,
+            target: target,
             linkDistance:
               node.x - that.selectedNode.x > 250
                 ? node.x - that.selectedNode.x
                 : 250,
             index: that.links.length
-          });
-          //not triggering doubleclicking prohibits force from calculating x & y properly?
-          var toDispatch = d3.selectAll("circle").filter(function(d, i, list) {
-            return i === list.length - 1;
-          });
+          };
+          that.links.push(link);
 
-          toDispatch.dispatch("dblclick");
+          var command = {
+            action: { type: "addNodeLink", node: node, links: [link] },
+            inverse: { type: "delNodeLink", node: node, links: [link] }
+          };
+
+          that.storeToHistory(command);
+          //not triggering doubleclicking prohibits force from calculating x & y properly?
+          var toDispatch = d3
+            .selectAll(".circleGroup")
+            .filter(function(d, i, list) {
+              return i === list.length - 1;
+            });
+
           that.selectedNode = that.nodes[that.nodes.length - 1];
           restart();
+
+          toDispatch.dispatch("click");
         } else {
           const node = {
             type: "circle",
@@ -369,17 +447,32 @@ class GraphEditor extends Component {
             height: 40,
             text: [""],
             x: that.point[0],
-            y: that.point[1]
+            y: that.point[1],
+            storedInfo: {
+              url: null,
+              info: null,
+              picture: null
+            }
           };
           that.point = null;
           that.nodes.push(node);
+
+          var command = {
+            action: { type: "addNode", node: node },
+            inverse: { type: "delNode", node: node }
+          };
+
+          that.storeToHistory(command);
+
+          that.mousedownNode = that.nodes[that.nodes.length - 1];
           restart();
-          var toDispatch = d3.selectAll("circle").filter(function(d, i, list) {
-            return i === list.length - 1;
-          });
-          toDispatch.dispatch("dblclick");
-          that.selectedNode = that.nodes[that.nodes.length - 1];
-          restart();
+          var toDispatch = d3
+            .selectAll(".circleGroup")
+            .filter(function(d, i, list) {
+              return i === list.length - 1;
+            });
+
+          toDispatch.dispatch("click");
         }
       })
       .attr("xlink:href", link)
@@ -391,7 +484,6 @@ class GraphEditor extends Component {
         stroke: "purple"
       });
 
-    // app starts here
     var zoom = d3.zoom().on("zoom", function() {
       container.attr("transform", d3.event.transform);
     });
@@ -422,90 +514,26 @@ class GraphEditor extends Component {
       .on("resize", resize);
     restart();
 
-    function resetMouseVars() {
-      that.mousedownNode = null;
-      //that.mouseupNode = null;
-      that.mousedownLink = null;
-    }
-    // update force layout (called automatically each iteration)
-    function tick() {
-      // draw directed edges with proper padding from node centers
-      if (optionGroupConnector.attr("visibility") === "visible")
-        optionGroup.attr("transform", function(d) {
-          if (that.selectedNode.type === "circle")
-            return `translate(${that.selectedNode.x + 205},${that.selectedNode
-              .y +
-              that.selectedNode.height / 2 -
-              25})`;
-          return `translate(${that.selectedNode.x +
-            that.selectedNode.width +
-            100},${that.selectedNode.y + that.selectedNode.height / 2 - 25})`;
-        });
-
-      path.attr("d", d => {
-        if (!that.state.focus) {
-          that.links.map(eachLink => {
-            if (eachLink.index === d.index) {
-              eachLink.linkDistance = Math.sqrt(
-                Math.pow(d.source.x - d.target.x, 2) +
-                  Math.pow(d.source.y - d.target.y, 2)
-              );
-            }
-          });
-        }
-
-        //WARNING: TURNS OUT, AFTER WE PUT IN FORCE.NODES AND ALL THAT, D.X & D.Y STOP CHANGING
-        console.log(
-          "path is being evaluated",
-          `M${d.source.x + d.source.width / 2},${d.source.y +
-            d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target
-            .y +
-            d.target.height / 2}`
-        );
-
-        return `M${d.source.x + d.source.width / 2},${d.source.y +
-          d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target.y +
-          d.target.height / 2}`;
-      });
-      texts.attr("transform", d => {
-        return `translate(${d.x},${d.y})`;
-      });
-      nodes.attr("transform", d => {
-        if (that.textInputCircle)
-          if (d.id === that.textInputCircle.id) {
-            that.textInputCircle.x = d.x;
-            that.textInputCircle.y = d.y;
-          }
-        return `translate(${d.x},${d.y})`;
-      });
-
-      circles.attrs({ cx: d => d.x + 75, cy: d => d.y + 20 });
-      images.attrs({ x: d => d.x + 50, y: d => d.y - 5 });
-
-      if (textBox.attr("x"))
-        //if x exists, textBox is visible, change positions
-        textBox
-          .attr("x", that.textInputCircle.x + 25)
-          .attr("y", that.textInputCircle.y);
-
-      if (resourceForm.attr("x")) {
-        resourceForm.attrs({
-          x: that.resourceFormCircleData.x,
-          y: that.resourceFormCircleData.y - 90
-        });
-      }
-    }
-    // update graph (called when needed)
-
     function restart() {
+      console.log("restarted");
       //TODO: selectAll as temporary solution, upgrade to difference update pattern
 
       d3.selectAll("rect.node").remove();
       d3.selectAll("g.textContainer").remove();
+      d3.select("#firstNodeText").remove();
+      if (that.nodes.length === 0) {
+        container
+          .append("svg:text")
+          .attrs({
+            x: window.innerWidth / 2 - 80,
+            y: window.innerHeight / 2 - 20,
+            id: "firstNodeText"
+          })
+          .text("Hey! To get started, press ctrl + click!");
+      }
+
       //JOIN DATA
       path = path.data(that.links);
-
-      console.log(path);
 
       // update existing that.links
       path
@@ -513,17 +541,23 @@ class GraphEditor extends Component {
         .style("marker-end", "url(#end-arrow)");
 
       // EXIT
-      path.exit().remove();
+      var pathExit = path.exit();
+      pathExit
+        .attr("opacity", 1)
+        .transition()
+        .duration(500)
+        .attr("opacity", 0)
+        .on("end", function() {
+          d3.select(this).remove();
+        });
 
       // UPDATE
       path = path
         .enter()
         .append("svg:path")
-        .attr("class", "connector")
+        .attr("class", "link")
         .classed("selected", d => d === that.selectedLink)
         .style("marker-end", "url(#end-arrow)")
-        .style("stroke", "black")
-        .style("stroke-width", 1.5)
         .on("mousedown", d => {
           if (d3.event.ctrlKey) return;
 
@@ -538,10 +572,17 @@ class GraphEditor extends Component {
         })
         .merge(path);
 
-      console.log(path);
-
       let gNodeGroups = nodes.data(that.nodes, d => d.id);
-      gNodeGroups.exit().remove();
+      var gNodeGroupsExit = gNodeGroups.exit();
+      gNodeGroupsExit
+        .attr("opacity", 1)
+        .transition()
+        .duration(500)
+        .attr("opacity", 0)
+        .on("end", function() {
+          d3.select(this).remove();
+        });
+
       gNodeGroups = gNodeGroups
         .enter()
         .append("svg:g")
@@ -552,78 +593,110 @@ class GraphEditor extends Component {
       // a selection of rect
       var rect = gNodeGroups.filter(d => d.type === "text").append("svg:rect");
 
-      circles = circles.data(
-        that.nodes.filter(eachNode => eachNode.type === "circle")
+      circleGroups = circleGroups.data(
+        that.nodes.filter(eachNode => eachNode.type === "circle"),
+        d => d.id
       );
-      circles.exit().remove();
 
-      circles = circles
+      var circleGroupsExit = circleGroups.exit();
+      circleGroupsExit
+        .attr("opacity", 1)
+        .transition()
+        .duration(500)
+        .attr("opacity", 0)
+        .on("end", function() {
+          d3.select(this).remove();
+        });
+      var circleGroupsEnter = circleGroups
         .enter()
-        .append("svg:circle")
-        .merge(circles);
+        .append("g")
+        .attr("class", "circleGroup");
+      var clipPaths = circleGroupsEnter
+        .append("clipPath")
+        .attr("id", function(d, i) {
+          //look lke: clipPath0
+          return "clipPath" + i;
+        })
+        .append("circle")
+        .attrs({ cx: 75, cy: 20, r: 30 });
 
+      var circles = circleGroupsEnter
+        .append("svg:circle")
+        .attrs({ r: 30, cx: 75, cy: 20, fill: "white", class: "node" })
+        .style("stroke-width", 3);
       circles
-        .attrs({ r: 30, cx: 75, cy: 20, fill: "white" })
-        .style("stroke-width", 2)
+        .merge(circleGroups.selectAll(".node"))
         .attr("stroke", function(d) {
+          console.log("here, ", { d }, that.selectedNode);
+          var selectedNode = that.selectedNode;
           if (that.selectedNode && d.id === that.selectedNode.id) {
             return "url(#svgGradient)";
           }
           return "black";
         });
-      circles
-        .on("mousedown", d => nodeMouseDown(d, rect, circles))
-        .on("mouseup", resourceNodeMouseUp)
-        .on("dblclick", resourceNodeDoubleClick);
 
-      circles.call(drag);
-
-      images = images.data(
-        that.nodes.filter(eachNode => eachNode.type === "circle")
-      );
-
-      images.exit().remove();
-      images = images
-        .enter()
+      var images = circleGroupsEnter
         .append("svg:image")
-        .merge(images);
-      images
-        .attrs({ width: 50, height: 50 })
-        .on("error", function() {
-          /*
-          console.log("there is error");
-          d3.select(this).attr(
-            "xlink:href",
-            "https://i.pinimg.com/originals/62/92/ac/6292acc41b9b3d21015e88b8aabbfa33.jpg"
-          );
+        .attr("class", "nodeImage")
+        .attrs({ width: 60, height: 60, x: 45, y: -10 })
+        .attr("clip-path", function(d, i) {
+          return "url(#clipPath" + i + ")";
+        });
 
-*/
-        })
-        .attr("xlink:href", function(d) {
-          if (d.resourceLink) {
-            /*
-            var img = new Image();
+      images.merge(circleGroups.selectAll("image")).each(function(d) {
+        var that = this;
+        if (!d.resourceLink || d.resourceLink === "") {
+          d3.select(that).attr("href", null);
+        } else {
+          var img = new Image();
+          img.onload = function() {
+            d3.select(that).attr("href", img.src);
+          };
+          img.src =
+            "https://hosted-besticon.herokuapp.com/icon?url=" +
+            d.resourceLink +
+            "&size=80..120..200";
 
-            img.onload = function() {
-              console.log("img", img, img.src);
-            };
-
-            img.src =
-              "https://icons.duckduckgo.com/ip2/" + d.resourceLink + ".ico";
-          }
-*/
-
-            return (
-              "https://icons.duckduckgo.com/ip2/" + d.resourceLink + ".ico"
+          if (!d3.select(this).attr("href")) {
+            d3.select(this).attr(
+              "href",
+              "https://static.thenounproject.com/png/20724-200.png"
             );
           }
+        }
+      });
+
+      var linkCircles = circleGroupsEnter
+        .append("svg:image")
+        .attr("class", "linkOpen")
+        .attrs({
+          width: 15,
+          height: 15,
+          fill: "blue",
+          x: 110,
+          y: 45,
+          opacity: that.state.preview ? 1 : 0,
+          href: open_new_tab
         })
+        .on("click", function(d) {
+          if (d.resourceLink) {
+            if (d.resourceLink.includes("https://www.")) {
+              window.open(d.resourceLink, "_blank");
+            } else if (d.resourceLink.includes("www.")) {
+              window.open("https://" + d.resourceLink, "_blank");
+            } else window.open("https://www." + d.resourceLink, "_blank");
+          }
+        });
 
-        .on("mousedown", d => nodeMouseDown(d, rect, circles))
+      circleGroups = circleGroups
+        .merge(circleGroupsEnter)
+        .on("mousedown", (d, i) => {
+          nodeMouseDown(d);
+        })
         .on("mouseup", resourceNodeMouseUp)
-        .on("dblclick", resourceNodeDoubleClick);
+        .on("click", onCircleClick)
 
-      images.call(drag);
+        .call(drag);
 
       var textContainers = gNodeGroups
         .filter(d => d.type === "text")
@@ -637,7 +710,6 @@ class GraphEditor extends Component {
               ? null
               : that.mousedownNode;
 
-          console.log("selectedNode", that.selectedNode);
           that.selectedLink = null;
 
           //can't restart, if restart dblclick can't be detected
@@ -729,29 +801,801 @@ class GraphEditor extends Component {
           return "black";
         })
         .on("dblclick", d => textNodeDblClick(d))
-        .on("mousedown", d => nodeMouseDown(d, rect, circles))
-        .on("mouseup", resourceNodeMouseUp);
+        .on("mousedown", d => nodeMouseDown(d))
+        .on("mouseup", resourceNodeMouseUp)
+        .on("click", textNodeClick);
 
       nodes = gNodeGroups.merge(nodes);
 
       that.force.nodes(that.nodes);
-      that.force.force(
-        "link",
-        d3
-          .forceLink(that.links)
-          .id(d => d.id)
-          .distance(function(d) {
-            return d.linkDistance;
-          })
-      );
 
       that.force.alphaTarget(0.3).restart();
     }
 
+    function tick() {
+      // draw directed edges with proper padding from node centers
+
+      if (
+        that.selectedNode &&
+        optionGroupConnector.attr("visibility") === "visible"
+      )
+        optionGroup.attr("transform", function(d) {
+          if (that.selectedNode.type === "circle")
+            return getTranslateString(
+              that.selectedNode.x + 115,
+              that.selectedNode.y - 5
+            );
+
+          return `translate(${that.selectedNode.x +
+            that.selectedNode.width +
+            10},${that.selectedNode.y + that.selectedNode.height / 2 - 25})`;
+        });
+
+      path.attr("d", d => {
+        if (!that.state.focus) {
+          that.links.map(eachLink => {
+            if (eachLink.index === d.index) {
+              eachLink.linkDistance = Math.sqrt(
+                Math.pow(d.source.x - d.target.x, 2) +
+                  Math.pow(d.source.y - d.target.y, 2)
+              );
+            }
+          });
+        }
+        //WARNING: TURNS OUT, AFTER WE PUT IN FORCE.NODES AND ALL THAT, D.X & D.Y STOP CHANGING
+        return `M${d.source.x + d.source.width / 2},${d.source.y +
+          d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target.y +
+          d.target.height / 2}`;
+      });
+      texts.attr("transform", d => {
+        return `translate(${d.x},${d.y})`;
+      });
+      nodes.attr("transform", d => {
+        if (that.textInputCircle)
+          if (d.id === that.textInputCircle.id) {
+            that.textInputCircle.x = d.x;
+            that.textInputCircle.y = d.y;
+          }
+        return `translate(${d.x},${d.y})`;
+      });
+
+      if (that.selectedNode && that.selectedNode.type === "circle") {
+        optionG.attr(
+          "transform",
+          getTranslateString(that.selectedNode.x + 75, that.selectedNode.y + 20)
+        );
+      }
+
+      circleGroups.attr("transform", d => getTranslateString(d.x, d.y));
+
+      if (textBox.attr("x"))
+        textBox
+          .attr("x", that.textInputCircle.x + 25)
+          .attr("y", that.textInputCircle.y);
+
+      if (resourceForm.attr("x")) {
+        resourceForm.attrs({
+          x: that.resourceFormCircleData.x,
+          y: that.resourceFormCircleData.y - 90
+        });
+      }
+    }
+
+    function resetMouseVars() {
+      that.mousedownNode = null;
+      //that.mouseupNode = null;
+      that.mousedownLink = null;
+    }
+    function restartOptionG() {
+      var selectedNode = that.selectedNode;
+
+      if (that.selectedNode) {
+        optionG.append("foreignObject");
+        that.transitionGs = optionG
+          .selectAll("g")
+          .data(that.transitionGDataset);
+
+        if (that.shouldTransitionGsAnimate === true) {
+          that.transitionGs.attr("transform", function() {
+            return getTranslateString(0, 0);
+          });
+
+          that.transitionGs
+            .transition()
+            .duration(that.animationAlreadyCompleted ? 0 : 500)
+            .delay(0)
+            .attrTween("transform", translateToDefault())
+            .on("end", function(d, i, list) {
+              that.animationAlreadyCompleted = false;
+              that.isTransitioning = false;
+              var periodSpaceBetween = Math.PI / (list.length + 1);
+              var goTo = Math.PI / 2 - periodSpaceBetween * (i + 1);
+              updateBasePeriod(d, goTo);
+            });
+          that.transitionGs.exit().remove();
+          that.transitionGsEnter = that.transitionGs
+            .enter()
+            .append("g")
+            .attr("class", "permanent");
+
+          that.transitionGsEnter.attr("transform", d => {
+            return getTranslateString(0, 0);
+          });
+
+          that.transitionGs = that.transitionGsEnter.merge(that.transitionGs);
+          that.transitionGs.on("click", onTransitionNodeClick);
+        }
+
+        var transitionCircles = that.transitionGsEnter
+          .append("circle")
+          .attrs({
+            r: 0,
+            fill: "white",
+            class: "permanent"
+          })
+          .style("stroke", "black");
+
+        var transitionImages = that.transitionGsEnter
+          .append("svg:image")
+          .attrs({
+            href: d => d.href,
+            width: 0,
+            height: 0,
+            x: 0,
+            y: 0,
+            class: "permanent"
+          });
+
+        that.transitionGsEnter
+          .transition()
+          .duration(that.shouldTransitionGsEnterAnimation ? 500 : 0)
+          .attr("transform", translateFromCenterToDefault())
+          .on("end", function() {
+            that.isTransitioning = false;
+          })
+          .on("end", function(d, i, list) {
+            var periodSpaceBetween = Math.PI / (list.length + 1);
+            var goTo = Math.PI / 2 - periodSpaceBetween * (i + 1);
+            updateBasePeriod(d, goTo);
+          });
+
+        that.transitionGsEnter
+          .selectAll("circle")
+          .transition()
+          .duration(that.shouldTransitionGsEnterAnimation ? 500 : 0)
+          .attr("r", 12.5)
+          .on("start", function() {})
+          .on("end", function() {
+            that.isTransitioning = false;
+          });
+
+        transitionImages
+          .transition()
+          .duration(that.shouldTransitionGsEnterAnimation ? 500 : 0)
+          .attrs({
+            width: 20,
+            height: 20,
+            x: -10,
+            y: -10
+          });
+      }
+    }
+
+    function onCircleClick(d, iClicked) {
+      var prevLocation = optionG.attr("transform");
+      that.selectedNode = d;
+      that.selectedLink = null;
+
+      updateStroke();
+
+      if (that.isTransitioning) {
+        return;
+      }
+
+      var selectedNode = that.selectedNode;
+
+      if (sameCircleClicked() && isTransitionCircleShowing()) {
+        if (that.lastClickedNode) {
+          closeForm();
+          closeNode();
+        }
+        optionG
+          .selectAll("g")
+          .transition()
+          .duration(500)
+          .delay(that.isFormShowing ? 500 : 0)
+          .attr(
+            "transform",
+            getTranslateString(
+              -(that.selectedNode.x - that.lastClickedCircleD.x),
+              -(that.selectedNode.y - that.lastClickedCircleD.y)
+            )
+          )
+          .on("end", function() {
+            optionG.selectAll("g").remove();
+            that.lastClickedCircle = iClicked;
+            that.lastClickedCircleD = d;
+            that.isFormShowing = false;
+            that.selectedNode = null;
+          });
+
+        optionG
+          .selectAll("circle.permanent")
+          .transition()
+          .duration(500)
+          .delay(that.isFormShowing ? 500 : 0)
+          .attr("r", 0);
+        optionG
+          .selectAll("image.permanent")
+          .transition()
+          .duration(500)
+          .delay(that.isFormShowing ? 500 : 0)
+          .attr("width", 0)
+          .attr("height", 0)
+          .attr("x", 0)
+          .attr("y", 0);
+
+        return;
+      }
+
+      var duration = 500;
+
+      // if not same circle click, but the transition circles were showing: hide old and show new
+      if (isTransitionCircleShowing()) {
+        if (that.lastClickedNode && that.isFormShowing) {
+          optionG.select("foreignObject").attr("transform", function() {
+            var decoded = decodeTranslateString(
+              prevLocation,
+              getTranslateString(0, 0),
+              that.selectedNode
+            );
+            return getTranslateString(decoded.x, decoded.y);
+          });
+          d3.select("#currentInput")
+            .transition()
+            .duration(duration)
+            .style("width", "0px")
+            .style("padding-left", "0px")
+            .style("padding-right", "0px")
+            .on("end", function() {
+              d3.select(this).remove();
+              optionG
+                .select("foreignObject")
+                .attr("transform", getTranslateString(0, 0));
+              that.isFormShowing = false;
+            });
+
+          var prevTransitionCircles = optionG.selectAll("g");
+          prevTransitionCircles.each(function() {
+            var bruh = decodeTranslateString(
+              prevLocation,
+              d3.select(this).attr("transform"),
+              that.selectedNode
+            );
+
+            d3.select(this).attr(
+              "transform",
+              getTranslateString(bruh.x, bruh.y)
+            );
+
+            that.alreadyDid = true;
+          });
+          that.lastClickedNode
+            .transition()
+            .duration(duration)
+            .attr("transform", d => {
+              var current = that.lastClickedNode.attr("transform");
+              var decoded = pureDecodeTranslate(current);
+              return getTranslateString(decoded.x - 175, decoded.y);
+            })
+            .on("end", function() {
+              //d3.select(this).attr("transform", getTranslateString(0, 0));
+            });
+        }
+
+        var prevTransitionCircles = optionG.selectAll("g");
+        prevTransitionCircles
+          .transition()
+          .duration(duration)
+          .delay(that.isFormShowing ? duration : 0)
+          .on("start", function(d2, i) {
+            if (!that.alreadyDid) {
+              var bruh = decodeTranslateString(
+                prevLocation,
+                d3.select(this).attr("transform"),
+                that.selectedNode
+              );
+
+              d3.select(this).attr(
+                "transform",
+                getTranslateString(bruh.x, bruh.y)
+              );
+            }
+
+            if (i === 0) {
+              that.isTransitioning = true;
+
+              var fakeNodesData = makeTransitionNodeData(2);
+              if (selectedNode.storedInfo.picture !== null) {
+                fakeNodesData = makeTransitionNodeData(3);
+              }
+
+              var newGs = optionG
+                .selectAll("g.temp")
+                .data(fakeNodesData)
+                .enter()
+                .append("g")
+                .attr("class", "temp");
+
+              // set original transformation so don't start from (0, 0)
+              newGs.attr("transform", getTranslateString(0, 0));
+
+              var transitionCircles = newGs
+                .append("circle")
+                .attr("class", "temp")
+                .attr("r", 0)
+                .attr("fill", "white")
+                .style("stroke", "black");
+
+              var transitionImages = newGs
+                .append("svg:image")
+                .attr("href", d => d.href)
+                .attr("width", 0)
+                .attr("height", 0)
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("class", "temp");
+
+              // move fake nodes out
+              newGs
+                .transition()
+                .duration(duration)
+                .attr("transform", translateFromCenterToDefault());
+
+              newGs
+                .selectAll("circle.temp")
+                .transition()
+                .duration(duration)
+                .attr("r", 12.5)
+                .on("start", function() {
+                  that.isTransitioning = true;
+                });
+
+              transitionImages
+                .transition()
+                .duration(duration)
+                .attr("width", 20)
+                .attr("height", 20)
+                .attr("x", -10)
+                .attr("y", -10);
+            }
+          })
+          .on("end", function(d2, i) {
+            that.alreadyDid = false;
+            if (i == 0) {
+              that.lastClickedCircle = iClicked;
+              that.lastClickedCircleD = d;
+              // after old nodes closed to center and fake nodes came out:
+              // 1) remove fake nodes
+              // restart accordingly
+              that.isTransitioning = false;
+              optionG.selectAll("g.temp").remove();
+              that.shouldTransitionGsAnimate = true;
+              that.animationAlreadyCompleted = true;
+              that.shouldTransitionGsEnterAnimation = false;
+
+              if (that.transitionGDataset.length === 2) {
+                if (selectedNode.storedInfo.picture === null) {
+                } else {
+                  that.transitionGDataset.push({
+                    href:
+                      "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
+                  });
+                }
+              } else if (that.transitionGDataset.length === 3) {
+                if (selectedNode.storedInfo.picture === null) {
+                  that.transitionGDataset.pop();
+                }
+              }
+
+              restartOptionG();
+              that.shouldTransitionGsEnterAnimation = true;
+              that.shouldTransitionGsAnimate = false;
+              that.animationAlreadyCompleted = false;
+            }
+          });
+
+        prevTransitionCircles
+          .selectAll("circle.permanent")
+          .transition()
+          .duration(duration)
+          .delay(that.isFormShowing ? duration : 0)
+          .attr("r", 0)
+          .on("end", function() {
+            d3.select(this).attr("r", 12.5);
+          });
+
+        prevTransitionCircles
+          .selectAll("image.permanent")
+          .transition()
+          .duration(duration)
+          .delay(that.isFormShowing ? duration : 0)
+          .attr("width", 0)
+          .attr("height", 0)
+          .attr("x", 0)
+          .attr("y", 0)
+          .on("end", function() {
+            d3.select(this)
+              .attr("width", 20)
+              .attr("height", 20)
+              .attr("x", -10)
+              .attr("y", -10);
+          });
+
+        that.isFormShowing = false;
+      } else {
+        that.shouldTransitionGsAnimate = true;
+        that.shouldTransitionGsEnterAnimation = true;
+
+        if (d.storedInfo.picture === null) {
+          that.transitionGDataset = makeTransitionNodeData(2);
+        } else {
+          that.transitionGDataset = makeTransitionNodeData(3);
+        }
+        that.lastClickedCircle = iClicked;
+        that.lastClickedCircleD = d;
+        restartOptionG();
+      }
+
+      function sameCircleClicked() {
+        return that.lastClickedCircle === iClicked;
+      }
+
+      function isTransitionCircleShowing() {
+        return !optionG.select("circle").empty();
+      }
+    }
+
+    function onTransitionNodeClick(dClicked, iClicked, list) {
+      var clickedNode = d3.select(this);
+      var selectedNode = that.selectedNode;
+      var base = dClicked.basePeriod,
+        radius = 30;
+
+      if (that.isFormShowing === true) {
+        closeForm();
+
+        that.lastClickedNode
+          .transition()
+          .duration(500)
+          .attr("transform", d => getTranslateString(radius, 0))
+
+          .on("end", function(d, i) {
+            // if clicked on URL node again when no picture node
+            if (list.length < 3 && that.lastClickedId === 0) {
+              if (iClicked === 0) {
+                selectedNode.storedInfo.picture = "";
+                that.transitionGDataset.push({
+                  href:
+                    "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
+                });
+
+                that.shouldTransitionGsAnimate = true;
+                that.shouldTransitionGsEnterAnimation = true;
+                restartOptionG();
+                return;
+              } else if (iClicked !== 0) {
+                that.transitionGDataset.push({
+                  href:
+                    "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
+                });
+                that.transitionGs = optionG
+                  .selectAll("g")
+                  .data(that.transitionGDataset);
+                selectedNode.storedInfo.picture = "";
+                that.shouldTransitionGsAnimate = false;
+                that.transitionGsEnter = that.transitionGs
+                  .enter()
+                  .append("g")
+                  .attr("class", "permanent");
+                that.transitionGsEnter.attr("transform", d => {
+                  return getTranslateString(
+                    selectedNode.x + 75,
+                    selectedNode.y + 20
+                  );
+                });
+
+                that.transitionGsEnter
+                  .transition()
+                  .duration(500)
+                  .attr("transform", translateFromCenterToDefault())
+                  .on("end", function(d, i, list) {
+                    var periodSpaceBetween = Math.PI / (list.length + 1);
+                    var goTo = Math.PI / 2 - periodSpaceBetween * (i + 1);
+                    updateBasePeriod(d, goTo);
+                  });
+                that.transitionGs
+                  .transition()
+                  .duration(500)
+                  .attrTween("transform", translateToDefault())
+                  .on("end", function(d, i, list) {
+                    var periodSpaceBetween = Math.PI / (list.length + 1);
+                    var goTo = Math.PI / 2 - periodSpaceBetween * (i + 1);
+                    updateBasePeriod(d, goTo);
+                    if (iClicked !== that.lastClickedId && i == 0) {
+                      openForm(d, iClicked);
+                    }
+                    if (i === list.length - 2) {
+                      updateLastClicked(iClicked, clickedNode, dClicked);
+                    }
+                  });
+                restartOptionG();
+                that.transitionGs = that.transitionGs
+                  .merge(that.transitionGsEnter)
+                  .on("click", onTransitionNodeClick);
+                return;
+              }
+            }
+            // clicked on URL node with picture node
+            else if (
+              list.length === 3 ||
+              (list.length < 3 && that.lastClickedId !== 0)
+            ) {
+              if (iClicked === that.lastClickedId) {
+                that.transitionGs
+                  .transition()
+                  .duration(500)
+                  .attrTween("transform", translateToDefault())
+                  .on("end", function(d, i) {
+                    var periodSpaceBetween = Math.PI / (list.length + 1);
+                    updateBasePeriod(
+                      d,
+                      Math.PI / 2 - periodSpaceBetween * (i + 1)
+                    );
+                    updateLastClicked(iClicked, clickedNode, dClicked);
+                  });
+                return;
+
+                //  not the same clicked, and,
+              } else if (iClicked !== that.lastClickedId) {
+                that.transitionGs
+                  .transition()
+                  .duration(500)
+                  .attrTween("transform", translateBackLastMoved(base))
+                  .on("end", function(d, i) {
+                    updateBasePeriod(d, d.basePeriod - base);
+                    if (i === iClicked) {
+                      openForm(d, iClicked);
+                    }
+                    updateLastClicked(iClicked, clickedNode, dClicked);
+                  });
+
+                return;
+              }
+            }
+            // clicking on URL node with other node's form open
+          });
+        return;
+      }
+      that.isFormShowing = true;
+      var radius = 30;
+      optionG
+        .select("foreignObject")
+        .lower()
+        .attrs({
+          width: 300,
+          height: 100,
+          x: radius
+        });
+
+      that.transitionGs
+        .merge(that.transitionGsEnter)
+        .transition()
+        .duration(shouldAnimate() ? 500 : 0)
+        .attrTween("transform", translateBackLastMoved(base))
+        .on("end", function(d, i) {
+          updateBasePeriod(d, d.basePeriod - base);
+          if (i === iClicked) {
+            openForm(d, iClicked);
+          }
+          updateLastClicked(iClicked, clickedNode, dClicked);
+        });
+
+      function shouldAnimate() {
+        if (iClicked === 1 && list.length === 3) {
+          return false;
+        }
+        return true;
+      }
+
+      function openForm(d, i) {
+        if (i == 1) {
+          that.transitionForm = optionG
+            .select("foreignObject")
+            .attrs({
+              y: i === 1 ? -17.5 : -12.5
+            })
+            .append("xhtml:textarea");
+        } else {
+          that.transitionForm = optionG
+            .select("foreignObject")
+            .attrs({
+              y: i === 1 ? -17.5 : -12.5
+            })
+            .append("xhtml:input");
+        }
+        that.transitionForm
+          .style("width", "0px")
+          .attr("id", "currentInput")
+          .attr("spellcheck", false)
+          .attr("placeholder", function() {
+            switch (i) {
+              case 0:
+                return "Link Resource URL here!";
+              case 1:
+                return "Talk about this resource!";
+              case 2:
+                return "Custom Node image URL";
+              default:
+            }
+          })
+          .attr("value", function() {
+            switch (i) {
+              case 0:
+                return selectedNode.storedInfo.url;
+              case 1:
+                d3.select(this).node().innerText = selectedNode.storedInfo.info;
+                break;
+              case 2:
+                if (
+                  selectedNode.storedInfo.picture ===
+                  selectedNode.storedInfo.url
+                ) {
+                  return null;
+                }
+                return selectedNode.storedInfo.picture;
+              default:
+            }
+          })
+          .style("padding-right", "0px")
+          .on("blur", function() {
+            switch (i) {
+              case 0:
+                var that = this;
+                var newURL = d3.select("#currentInput")._groups[0][0].value;
+
+                if (newURL === selectedNode.storedInfo.url) return;
+
+                selectedNode.storedInfo.url = newURL;
+                selectedNode.storedInfo.picture = newURL;
+
+                circleGroups.selectAll("image").each(function(d) {
+                  if (d !== selectedNode) return;
+
+                  var pictureRef = this;
+                  if (
+                    !selectedNode.storedInfo.picture ||
+                    selectedNode.storedInfo.picture === ""
+                  ) {
+                    // if there's nothing appended, href null
+                    d3.select(that).attr("href", null);
+                  } else {
+                    // set src
+
+                    var img = new Image();
+                    img.onload = function() {
+                      d3.select(pictureRef).attr("href", img.src);
+                    };
+
+                    img.onerror = function() {};
+                    img.src =
+                      "https://hosted-besticon.herokuapp.com/icon?url=" +
+                      selectedNode.storedInfo.picture +
+                      "&size=80..120..200";
+
+                    d3.select(this).attr(
+                      "href",
+                      "https://media0.giphy.com/media/3o7bu3XilJ5BOiSGic/giphy.gif"
+                    );
+                  }
+                });
+
+                break;
+              case 1:
+                selectedNode.storedInfo.info = d3.select(
+                  "#currentInput"
+                )._groups[0][0].value;
+                break;
+              case 2:
+                var that = this;
+                var newValue = d3.select("#currentInput")._groups[0][0].value;
+
+                if (newValue === selectedNode.storedInfo.picture) {
+                  break;
+                }
+
+                selectedNode.storedInfo.picture = newValue;
+                circleGroups.selectAll("image").each(function(d) {
+                  if (d !== selectedNode) return;
+
+                  var pictureRef = this;
+                  if (
+                    !selectedNode.storedInfo.picture ||
+                    selectedNode.storedInfo.picture === ""
+                  ) {
+                    // if there's nothing appended, href null
+                    d3.select(that).attr("href", null);
+                  } else {
+                    // set src
+                    var img = new Image();
+                    img.onload = function() {
+                      d3.select(pictureRef).attr("href", img.src);
+                    };
+                    img.onerror = function() {
+                      // alert("choose diff photo! Make sure to insert an image address as opposed to the link of a website")
+                      d3.select(pictureRef).attr("href", null);
+                    };
+                    img.src = selectedNode.storedInfo.picture;
+
+                    d3.select(this).attr(
+                      "href",
+                      "https://media0.giphy.com/media/3o7bu3XilJ5BOiSGic/giphy.gif"
+                    );
+                  }
+                });
+                break;
+              default:
+            }
+          });
+
+        that.transitionForm
+          .transition()
+          .duration(500)
+          .style("width", "175px")
+          .style("padding-right", "15px")
+          .style("padding-left", "5px")
+          .on("end", function() {
+            d3.select(this)
+              .node()
+              .focus();
+          });
+
+        clickedNode
+          .transition()
+          .duration(500)
+          .attr("transform", d => transformOpenCurrentNode(d));
+
+        that.isFormShowing = true;
+      }
+    }
+
+    function updateLastClicked(newClickedId, newClickedNode, newClickedData) {
+      that.lastClickedId = newClickedId;
+      that.lastClickedNode = newClickedNode;
+      that.lastClickedD = newClickedData;
+    }
+    function closeForm() {
+      d3.select("#currentInput")
+        .transition()
+        .duration(500)
+        .style("width", "0px")
+        .style("padding-left", "0px")
+        .style("padding-right", "0px")
+        .on("end", function() {
+          d3.select(this).remove();
+          that.isFormShowing = false;
+        });
+    }
+    function closeNode() {
+      if (that.lastClickedNode)
+        that.lastClickedNode
+          .transition()
+          .duration(500)
+          .attr("transform", d => transformCloseCurrentNode(d));
+    }
     function toggleFocus() {
       that.setState({ focus: !that.state.focus });
       if (that.state.focus) {
-        console.log("focused, force is applied");
         that.force = d3
           .forceSimulation(that.nodes)
           .force(
@@ -768,25 +1612,62 @@ class GraphEditor extends Component {
 
         that.force.alphaTarget(0.3).restart();
       } else {
-        console.log("unfocused, dragging will change length");
+        alert("Force disabled. Dragging connected nodes changes link distance");
         that.force.force("link", null).force("charge", null);
       }
 
       that.previousTransform = d3.select("g.gContainer").attr("transform");
       restart();
     }
+    function togglePreview() {
+      that.setState({ preview: !that.state.preview });
+      restart();
+    }
+    function textNodeClick(rectData) {
+      function isTransitionCircleShowing() {
+        return !optionG.select("circle").empty();
+      }
+      var prevLocation = optionG.attr("transform");
+      var duration = 500;
+      if (that.selectedNode && that.selectedNode.type === "circle") {
+        that.lastClickedCircle = null;
+        // if we were selecting circles, close them
+        closeForm();
+        closeNode();
+        optionG
+          .selectAll("circle.permanent")
+          .transition()
+          .duration(500)
+          .delay(that.isFormShowing ? 500 : 0)
+          .attr("r", 0);
+        optionG
+          .selectAll("image.permanent")
+          .transition()
+          .duration(500)
+          .delay(that.isFormShowing ? 500 : 0)
+          .attr("width", 0)
+          .attr("height", 0)
+          .attr("x", 0)
+          .attr("y", 0);
+      }
+      if (rectData === that.selectedNode) {
+        that.selectedNode = null;
+        updateStroke();
+      } else {
+        that.selectedNode = rectData;
+
+        updateStroke();
+      }
+    }
 
     function textNodeDblClick(rectData) {
-      console.log("Double Clicked On A Node");
+      updateStroke();
       that.mousedownNode = null;
-      that.selectedNode = null;
-      rectOnClickSetUp(
-        that.isTyping,
-        that.selectedNode,
-        svg,
-        that.startText,
-        rectData
-      );
+
+      that.isTyping = true;
+      rectOnClickSetUp(that.isTyping, that.selectedNode, svg, rectData);
+      that.startText = rectData.text;
+
       rectOnClickBlurCurrentText(that.nodes, restart, rectData);
       that.textInputCircle = rectData;
 
@@ -834,21 +1715,26 @@ class GraphEditor extends Component {
           //on dblclick, blur, notNewNode is true
           if (that.startText !== rectData.text) {
             that.nodeToChange = rectData;
-            //console.log("starttext");
-            that.storeToHistory();
+            var command = {
+              action: {
+                type: "modifyText",
+                node: that.nodeToChange,
+                text: rectData.text
+              },
+              inverse: {
+                type: "modifyText",
+                node: that.nodeToChange,
+                text: that.startText
+              }
+            };
+
+            that.storeToHistory(command);
           }
 
           that.startText = null;
           that.nodeToChange = null;
           that.isTyping = false;
           that.textInputCircle = null;
-
-          console.log(
-            "properties after rect dblclick",
-            that.mousedownNode,
-            that.selectedNode,
-            that.mouseupNode
-          );
         })
         .on("keydown", function() {
           if (d3.event.keyCode === 13 && !d3.event.shiftKey) {
@@ -881,9 +1767,98 @@ class GraphEditor extends Component {
 
       paragraph.node().focus();
     }
+    function resourceNodeDoubleClick(circleData) {
+      //not changing circle opacity to 0 right now because form should be larger than circle
+      that.mousedownNode = null;
+      that.selectedNode = null;
+      that.startDescription = circleData.description;
+      that.startResourceLink = circleData.resourceLink;
+      that.resourceFormCircleData = circleData;
+      svg.on(".zoom", null);
+      //technically textBox can be reused since it's just a foreginOBject that can be reassigned each time
+      resourceForm = resourceForm
+        .attr("x", circleData.x)
+        .attr("y", circleData.y)
+        .attr("width", 150)
+        .attr("height", 200);
+      resourceForm
+        .append("xhtml:div")
+        .html(
+          "<div class='resourceForm'><form autocomplete='off'><div class='formContainer'><a class='resourceFormA'>Resource URL</a><input id='input1'/><br/><a class='resourceFormA'>Description</a><textarea id='input2'></textarea></div></form><img id='resourceFormSubmitButton'></img><img id='resourceFormCancelButton'></img></div>"
+        );
 
+      d3.select("#resourceFormSubmitButton")
+        .attr("src", check)
+        .on("click", function() {
+          svg.call(
+            d3
+              .zoom()
+              .scaleExtent([0.1, 4])
+              .on("zoom", function() {
+                container.attr("transform", d3.event.transform);
+              })
+          );
+          var resourceLink = document.getElementById("input1").value;
+          var description = document.getElementById("input2").value;
+          circleData.resourceLink = resourceLink;
+          circleData.description = description;
+
+          if (
+            that.startDescription !== description ||
+            that.startResourceLink !== resourceLink
+          ) {
+            var command = {
+              action: {
+                type: "modifyResourceNode",
+                node: circleData,
+                description: description,
+                resourceLink: resourceLink
+              },
+              inverse: {
+                type: "modifyResourceNode",
+                node: circleData,
+                description: that.startDescription,
+                resourceLink: that.startResourceLink
+              }
+            };
+
+            that.storeToHistory(command);
+          }
+
+          that.startDescription = null;
+          that.startResourceLink = null;
+          d3.selectAll("foreignObject").remove();
+          textBox = container.append("foreignObject");
+          resourceForm = container
+            .append("foreignObject")
+            .attr("class", "resourceForm");
+
+          restart();
+        });
+
+      d3.select("#resourceFormCancelButton")
+        .attr("src", close)
+        .on("click", function() {
+          svg.call(
+            d3
+              .zoom()
+              .scaleExtent([0.1, 4])
+              .on("zoom", function() {
+                container.attr("transform", d3.event.transform);
+              })
+          );
+
+          d3.selectAll("foreignObject").remove();
+          textBox = container.append("foreignObject");
+          resourceForm = container
+            .append("foreignObject")
+            .attr("class", "resourceForm");
+        });
+    }
     function resourceNodeMouseUp(d) {
-      console.log("Mouse Upped on A Node");
+      var mousedownNode = that.mousedownNode,
+        selectedNode = that.selectedNode;
+
       if (!that.mousedownNode) return;
 
       svg.call(
@@ -906,180 +1881,189 @@ class GraphEditor extends Component {
 
       const source = that.mousedownNode;
       const target = that.mouseupNode;
-
-      that.links.push({
-        source: source.id,
-        target: target.id,
+      var link = {
+        source: source,
+        target: target,
         linkDistance: 250,
         index: that.links.length
-      });
+      };
+      that.links.push(link);
 
-      that.storeToHistory();
+      var command = {
+        action: { type: "addLink", link: link },
+        inverse: { type: "delLink", link: link }
+      };
 
-      that.selectedNode = null;
-      that.mousedownNode = null;
-      //console.log("mouseup node in mouseup()", that.mouseupNode);
+      that.storeToHistory(command);
+
+      //that.mousedownNode = null;
 
       restart();
-
-      //console.log("mousedown node at mouseupNode", that.mousedownNode);
-      console.log(
-        "properties after circle mouse up",
-        that.mousedownNode,
-        that.selectedNode,
-        that.mouseupNode
-      );
     }
-
-    function resourceNodeDoubleClick(circleData) {
-      //not changing circle opacity to 0 right now because form should be larger than circle
-      console.log("Double Clicked On A Node");
-      that.mousedownNode = null;
-      that.selectedNode = null;
-      that.resourceFormCircleData = circleData;
-      svg.on(".zoom", null);
-      //technically textBox can be reused since it's just a foreginOBject that can be reassigned each time
-      resourceForm = resourceForm
-        .attr("x", circleData.x)
-        .attr("y", circleData.y)
-        .attr("width", 150)
-        .attr("height", 200);
-      resourceForm
-        .append("xhtml:div")
-        .html(
-          "<div class='resourceForm'><form autocomplete='off'><div class='formContainer'><a class='resourceFormA'>Resource URL</a><input id='input1'/><br/><a class='resourceFormA'>Description</a><textarea id='input2'></textarea></div></form><button id='resourceFormSubmitButton'>yes</button><button id='resourceFormCancelButton'>cancel</button></div>"
-        );
-
-      d3.select("#resourceFormSubmitButton").on("click", function() {
-        svg.call(
-          d3
-            .zoom()
-            .scaleExtent([0.1, 4])
-            .on("zoom", function() {
-              container.attr("transform", d3.event.transform);
-            })
-        );
-        var resourceLink = document.getElementById("input1").value;
-        circleData.resourceLink = resourceLink;
-        d3.selectAll("foreignObject").remove();
-        textBox = container.append("foreignObject");
-        resourceForm = container
-          .append("foreignObject")
-          .attr("class", "resourceForm");
-
-        restart();
-      });
-
-      d3.select("#resourceFormCancelButton").on("click", function() {
-        svg.call(
-          d3
-            .zoom()
-            .scaleExtent([0.1, 4])
-            .on("zoom", function() {
-              container.attr("transform", d3.event.transform);
-            })
-        );
-
-        d3.selectAll("foreignObject").remove();
-        textBox = container.append("foreignObject");
-        resourceForm = container
-          .append("foreignObject")
-          .attr("class", "resourceForm");
-      });
-    }
-
-    function nodeMouseDown(d, rect, circles) {
-      console.log("Mouse Downed on A Node");
-
-      optionGroup.attr("visibility", "hidden");
-      if (d.type === "circle") {
-        rect.attr("stroke", "black");
-      } else {
-        circles.attr("stroke", "black");
+    function updateStroke() {
+      console.log("do we have selectedNode?", that.selectedNode);
+      var allNodeSelection = d3.selectAll(".node");
+      console.log("our selection", allNodeSelection);
+      if (!that.selectedNode) {
+        allNodeSelection.each(function() {
+          d3.select(this).attr("stroke", "black");
+        });
+        return;
       }
 
-      rect.each(function(d2) {
-        var isNewSelection = false;
-        if (d.id === d2.id) {
-          var currentStroke = d3.select(this).attr("stroke");
-          if (currentStroke === "url(#svgGradient)") {
+      allNodeSelection.each(function(eachNodeData) {
+        if (eachNodeData.id === that.selectedNode.id) {
+          var prevStyle = d3.select(this).attr("stroke");
+          if (prevStyle === "url(#svgGradient)") {
             d3.select(this).attr("stroke", "black");
           } else {
             d3.select(this).attr("stroke", "url(#svgGradient)");
-            isNewSelection = true;
           }
-        }
-
-        if (isNewSelection) {
-          rect.each(function(d2) {
-            if (d.id !== d2.id) {
-              d3.select(this).attr("stroke", "black");
-            }
-          });
+        } else {
+          d3.select(this).attr("stroke", "black");
         }
       });
-
-      circles.each(function(d2) {
-        var isNewSelection = false;
-        if (d.id === d2.id) {
-          var currentStroke = d3.select(this).attr("stroke");
-          if (currentStroke === "url(#svgGradient)") {
-            d3.select(this).attr("stroke", "black");
-          } else {
-            d3.select(this).attr("stroke", "url(#svgGradient)");
-            isNewSelection = true;
-          }
-        }
-
-        if (isNewSelection) {
-          circles.each(function(d2) {
-            if (d.id !== d2.id) {
-              d3.select(this).attr("stroke", "black");
-            }
-          });
-        }
-      });
-
+    }
+    function nodeMouseDown(d) {
+      optionGroup
+        .transition()
+        .duration(300)
+        .attr("opacity", 0)
+        .on("end", function() {
+          optionGroup.attr("visibility", "hidden");
+        });
       that.mousedownNode = d;
-      that.selectedNode =
-        that.mousedownNode === that.selectedNode ? null : that.mousedownNode;
-      that.selectedLink = null;
+      /*
+      if (d.type === "text") {
+        that.selectedNode =
+          that.mousedownNode === that.selectedNode ? null : that.mousedownNode;
+        that.selectedLink = null;
 
-      console.log(
-        "properties after rect mouse down",
-        that.mousedownNode,
-        that.selectedNode,
-        that.mouseupNode
-      );
+        updateStroke();
+      }
+*/
     }
 
-    //sensing svg click
-    function click() {
-      console.log("Mouse Click in window");
-      optionGroup.attr("visibility", "hidden");
+    function splicelinksForNode(node) {
+      const toSplice = that.links.filter(
+        l => l.source === node || l.target === node
+      );
+      for (const l of toSplice) {
+        that.links.splice(that.links.indexOf(l), 1);
+      }
 
+      return toSplice;
+    }
+
+    function stretchOutOptionGroupForm() {
+      optionGroupG
+        .transition()
+        .duration(600)
+        .ease(d3.easeBounce)
+        .attr("transform", getTranslateString(100, 0));
+      optionGroupConnector
+        .transition()
+        .duration(600)
+        .ease(d3.easeBounce)
+        .attr("width", 100);
+    }
+
+    function stretchCloseOptionGroupForm(endFunction = null) {
+      optionGroupG
+        .transition()
+        .duration(600)
+        .attr("transform", getTranslateString(0, 0));
+      optionGroupConnector
+        .transition()
+        .duration(600)
+        .attr("width", 0)
+        .on("end", function() {
+          if (endFunction) {
+            endFunction();
+          }
+        });
+    }
+
+    function isOptionGroupFormVisible() {
+      return optionGroup.attr("visibility") === "visible";
+    }
+
+    function invertOptionGroupVisibility() {
+      optionGroupConnector.attr(
+        "visibility",
+        isOptionGroupFormVisible() ? "hidden" : "visible"
+      );
+
+      optionGroup
+        .attr("visibility", isOptionGroupFormVisible() ? "hidden" : "visible")
+        .attr("transform", function(d) {
+          if (that.selectedNode.type === "circle") {
+            var radius = 30;
+            return getTranslateString(
+              that.selectedNode.x + 115,
+              that.selectedNode.y - 5
+            );
+          } else if (that.selectedNode.type === "text") {
+            return getTranslateString(
+              that.selectedNode.x + that.selectedNode.width + 10,
+              that.selectedNode.y - 5 + that.selectedNode.height / 2 - 25
+            );
+          }
+        });
+    }
+
+    function click() {
+      //WHY IS CLICK() TRIGGERING FOR ONLY FOR CIRCULAR NODES, DEBUG?
+      var mousedownNode = that.mousedownNode,
+        selectedNode = that.selectedNode;
+
+      if (that.inConnectMode) {
+        optionGroup
+          .transition()
+          .duration(300)
+          .attr("opacity", 0)
+          .on("end", function() {
+            optionGroup.attr("visibility", "hidden");
+            optionGroupConnector.attr("visibility", "hidden");
+            optionGroupG.attr("transform", getTranslateString(0, 0));
+            optionGroupConnector.attr("width", 0);
+          });
+      } else {
+        optionGroup
+          .transition()
+          .duration(300)
+          .attr("opacity", 0)
+          .on("end", function() {
+            optionGroup.attr("visibility", "hidden");
+            optionGroupConnector.attr("visibility", "hidden");
+          });
+      }
+
+      that.inConnectMode = false;
+
+      //    optionGroupConnector.attr("visibility", "hidden");
+
+      //triggers if there is no mouse down node
       if (d3.event.ctrlKey && !that.mousedownNode) {
-        console.log("mouse down node at ctrl click", that.mousedownNode);
-        that.selectedNode = null;
         //TODO: run a function that updates circles & rectangles to their appropriate colors
 
         var point = d3.mouse(this);
         var transform = d3.zoomTransform(container.node());
         that.point = transform.invert(point);
-        console.log(that.point);
-        console.log("points when window got clicked", point);
         optionGroupConnector.attr("visibility", "hidden");
         optionGroup
-          .attr("visibility", "visible")
-          .attr("transform", `translate(${that.point[0]}, ${that.point[1]})`);
+          .attr("transform", `translate(${that.point[0]}, ${that.point[1]})`)
+          .transition()
+          .duration(300)
+          .attr("opacity", 1)
+          .on("start", function() {
+            optionGroup.attr("visibility", "visible");
+          });
       }
 
       that.mousedownNode = null;
     }
-    function mousedown() {
-      console.log("Mouse Down in window");
-    }
-    //sensing svg mousemove (move dragLine)
+    function mousedown() {}
     function mousemove() {
       that.mouseupNode = null;
       if (!that.mousedownNode) return;
@@ -1100,62 +2084,30 @@ class GraphEditor extends Component {
         );
       }
     }
-
-    //sensing svg mouseup (undraws link)
     function mouseup() {
-      console.log("Mouse Up in window");
       //console.log("svg mouseup", "mousedown node", that.mousedownNode);
 
       // hide drag line
       if (that.mousedownNode)
         dragLine.classed("hidden", true).style("marker-end", "");
-
-      // because :active only works in WebKit?
-      svg.classed("active", false);
-    }
-
-    function splicelinksForNode(node) {
-      const toSplice = that.links.filter(
-        l => l.source === node || l.target === node
-      );
-      for (const l of toSplice) {
-        that.links.splice(that.links.indexOf(l), 1);
+      if (that.mousedownNode && that.mouseupNode) {
+        if (
+          that.mousedownNode.type === "text" ||
+          that.mouseupNode.type === "text"
+        ) {
+          click();
+        }
       }
     }
-
     function keydown() {
       if (d3.event.ctrlKey && !that.isTyping) {
         if (
           (d3.event.keyCode === 17 && d3.event.shiftKey) ||
           d3.event.keyCode === 89
         ) {
-          //REDO
-          if (that.historyStep !== that.history.length - 1) {
-            that.historyStep += 1;
-
-            that.nodes = JSON.parse(that.history[that.historyStep].nodes);
-            that.links = JSON.parse(that.history[that.historyStep].links);
-
-            restart();
-          }
+          redo();
         } else if (d3.event.keyCode === 90) {
-          //UNDO
-          if (that.historyStep !== 0) {
-            that.historyStep -= 1;
-            var historyNodes = JSON.parse(that.history[that.historyStep].nodes);
-
-            //  that.links = JSON.parse(that.history[that.historyStep].links);
-
-            //GET RID OF ATTRIBUTES OTHER THAN X, Y, AND BASIC NODE INFORMATION
-
-            //get similarity between arrays
-            //update that.nodes to the x & y we have currently
-            //O(n^2)
-
-            that.nodes.pop();
-            that.links.pop();
-            restart();
-          }
+          undo();
         }
       }
 
@@ -1166,79 +2118,214 @@ class GraphEditor extends Component {
           break;
 
         case 46: // delete
-          if (that.selectedNode) {
-            that.nodes.splice(that.nodes.indexOf(that.selectedNode), 1);
-            splicelinksForNode(that.selectedNode);
+          if (that.selectedNode && !that.isTyping) {
+            console.log("TOOD: Close transition Gs");
+
+            var node = that.selectedNode;
+            var links = splicelinksForNode(that.selectedNode);
+            that.nodes = that.nodes.filter(n => n.id !== that.selectedNode.id);
+
+            var command = {
+              action: { type: "delNodeLink", node: node, links: links },
+              inverse: { type: "addNodeLink", node: node, links: links }
+            };
+            that.storeToHistory(command);
+            restart();
           } else if (that.selectedLink) {
             that.links.splice(that.links.indexOf(that.selectedLink), 1);
+            var command = {
+              action: { type: "delLink", link: that.selectedLink },
+              inverse: {
+                type: "addLink",
+                link: that.selectedLink
+              }
+            };
+            that.storeToHistory(command);
+            restart();
           }
           that.selectedLink = null;
-          that.selectedNode = null;
+          //that.selectedNode = null;
 
-          restart();
-          that.storeToHistory();
           break;
       }
     }
-
     function keyup() {
       switch (d3.event.keyCode) {
         case 9: //tab
           toggleFocus();
           break;
         case 192: // ` ~ key
-          console.log(that.selectedNode);
-          if (that.selectedNode) {
-            console.log("~ pressed, making optionGroup pop up");
-            optionGroupConnector.attr("visibility", "visible");
-            // instead of pushing node, we make the circle text selection group visible
-            optionGroup
-              .attr("visibility", "visible")
-              .attr("transform", function(d) {
-                //console.log(that.selectedNode);
-                return `translate(${that.selectedNode.x +
-                  that.selectedNode.width +
-                  100},${that.selectedNode.y})`;
-              });
+          if (that.selectedNode && !that.isTyping) {
+            that.inConnectMode = true;
 
-            /*
-            optionGroupRect.attrs({
-              x: that.selectedNode.x,
-              y: that.selectedNode.y
-            });
-            optionGroupT.attrs({
-              x: that.selectedNode.x + that.selectedNode.width + 100 + 75,
-              y: that.selectedNode.y + that.selectedNode.height / 2 - 25
-            });
+            if (isOptionGroupFormVisible()) {
+              stretchCloseOptionGroupForm(invertOptionGroupVisibility);
+            } else {
+              // not visible
+              optionGroupConnector.attr("visibility", "visible");
+              optionGroupConnector.attr("opacity", 1);
+              optionGroup.attr("opacity", 1);
+              optionGroup.attr("visibility", "visible");
+              stretchOutOptionGroupForm();
+            }
 
-            optionGroupBorder.attrs({
-              x1: that.selectedNode.x + that.selectedNode.width + 100 + 57.5,
-              x2: that.selectedNode.x + that.selectedNode.width + 100 + 57.5,
-              y1: that.selectedNode.y + 9 + that.selectedNode.height / 2 - 25,
-              y2: that.selectedNode.y + 42 + that.selectedNode.height / 2 - 25
-            });
-
-            optionGroupLink.attrs({
-              x: that.selectedNode.x + that.selectedNode.width + 100,
-              y: that.selectedNode.y + 9 + that.selectedNode.height / 2 - 25
-            });
-
-
-
-*/
+            // now, move each element by 150 to the right, do this
           }
       }
     }
-
     function keypress() {}
-
     function resize() {
       svg.style("width", window.innerWidth).style("height", window.innerHeight);
+    }
+
+    function undo() {
+      if (that.historyStep !== 0) {
+        console.log(that.history[that.historyStep]);
+        var inverseCommand = that.history[that.historyStep].inverse;
+        switch (inverseCommand.type) {
+          case "delNode":
+            that.nodes = that.nodes.filter(
+              n => n.id !== inverseCommand.node.id
+            );
+            break;
+
+          case "delLink":
+            that.links = that.links.filter(
+              l => l.index !== inverseCommand.link.index
+            );
+
+            break;
+
+          case "addLink":
+            that.links.push({
+              source: inverseCommand.link.source,
+              target: inverseCommand.link.target,
+              linkDistance: inverseCommand.link.linkDistance,
+              index: inverseCommand.link.index
+            });
+
+            break;
+
+          case "delNodeLink":
+            that.nodes = that.nodes.filter(
+              n => n.id !== inverseCommand.node.id
+            );
+            that.links = that.links.filter(l => {
+              return inverseCommand.links.indexOf(l) < 0;
+            });
+
+            break;
+
+          case "addNodeLink":
+            that.nodes.push(inverseCommand.node);
+
+            inverseCommand.links.map(eachLink => {
+              that.links.push({
+                source: eachLink.source,
+                target: eachLink.target,
+                linkDistance: eachLink.linkDistance,
+                index: eachLink.index
+              });
+            });
+
+            break;
+
+          case "modifyText":
+            that.nodes.map(n => {
+              if (n.id === inverseCommand.node.id) {
+                n.text = inverseCommand.text;
+              }
+            });
+
+            break;
+
+          case "modifyResourceNode":
+            that.nodes.map(n => {
+              if (n.id === inverseCommand.node.id) {
+                n.description = inverseCommand.description;
+                n.resourceLink = inverseCommand.resourceLink;
+              }
+            });
+
+            break;
+        }
+        that.historyStep -= 1;
+      }
+      restart();
+    }
+    function redo() {
+      if (that.historyStep !== that.history.length - 1) {
+        that.historyStep += 1;
+        var actionCommand = that.history[that.historyStep].action;
+        switch (actionCommand.type) {
+          case "addNode":
+            that.nodes.push(actionCommand.node);
+            break;
+          case "addLink":
+            that.links.push({
+              source: actionCommand.link.source,
+              target: actionCommand.link.target,
+              linkDistance: actionCommand.link.linkDistance,
+              index: actionCommand.link.index
+            });
+            break;
+          case "delLink":
+            that.links = that.links.filter(
+              l => l.index !== actionCommand.link.index
+            );
+            break;
+
+          case "addNodeLink":
+            that.nodes.push(actionCommand.node);
+
+            actionCommand.links.map(eachLink => {
+              that.links.push({
+                source: eachLink.source,
+                target: eachLink.target,
+                linkDistance: eachLink.linkDistance,
+                index: eachLink.index
+              });
+            });
+            break;
+          case "delNodeLink":
+            that.nodes = that.nodes.filter(n => n.id !== actionCommand.node.id);
+            that.nodes = that.links.filter(l => {
+              return actionCommand.links.indexOf(l) < 0;
+            });
+
+            break;
+
+          case "modifyText":
+            that.nodes.map(n => {
+              if (n.id === actionCommand.node.id) {
+                n.text = actionCommand.text;
+              }
+            });
+
+            break;
+
+          case "modifyResourceNode":
+            that.nodes.map(n => {
+              if (n.id === actionCommand.node.id) {
+                n.description = actionCommand.description;
+                n.resourceLink = actionCommand.resourceLink;
+              }
+            });
+
+            break;
+        }
+
+        restart();
+      }
     }
   }
 
   render() {
-    const colorOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const errDisplay = (
+      <div className="errMsginner">
+        <span style={{ color: "white" }} id="errMsg"></span>
+      </div>
+    );
     return (
       <React.Fragment>
         <EditorNavbar />
@@ -1246,7 +2333,7 @@ class GraphEditor extends Component {
           {this.state.showManual ? (
             <Manual toggleManual={this.toggleManual} />
           ) : null}
-
+          <div className="errMsg">{errDisplay}</div>
           <img
             style={{
               position: "absolute",
@@ -1269,6 +2356,17 @@ class GraphEditor extends Component {
               }}
               id="focusIcon"
               src={this.state.focus ? focused : notFocused}
+            />
+            <img
+              style={{
+                position: "absolute",
+                top: "200px",
+                right: "15px",
+                width: "50px",
+                cursor: "pointer"
+              }}
+              id="previewIcon"
+              src={this.state.preview ? preview_purple : preview}
             />
           </div>
         </div>

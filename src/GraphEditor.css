@@ -8,10 +8,6 @@ svg {
   user-select: none;
 }
 
-svg:not(.active):not(.ctrl) {
-  cursor: crosshair;
-}
-
 path.link {
   fill: none;
   stroke: #000;
@@ -40,11 +36,6 @@ circle.node {
   cursor: pointer;
 }
 
-circle.node.reflexive {
-  stroke: #000 !important;
-  stroke-width: 2.5px;
-}
-
 text {
   font: 12px sans-serif;
   pointer-events: none;
@@ -56,16 +47,19 @@ text.id {
 }
 
 input {
-  outline: 0;
-  border: 0;
+  border-radius: 20px;
+  border: 1px solid black;
+  outline: none;
+  overflow: none;
 }
 
-foreignObject.textBox {
-  outline: 0 !important;
-  color: red;
-}
-
-foreignObject {
+textarea {
+  border-radius: 10px;
+  border: 1px solid black;
+  outline: none;
+  overflow: hidden;
+  font-family: "Arial";
+  resize: none;
 }
 
 div.toolbar {
@@ -139,8 +133,10 @@ img.picture {
   outline: 0;
   resize: none;
   overflow: hidden;
-  background: #a3a3a3;
+  background: white;
   border: solid 1px #404040;
+  font-family: Georgia, serif;
+  font-size: 11px;
 }
 
 #input1 {
@@ -149,15 +145,17 @@ img.picture {
   max-width: 115px;
   border-radius: 5px;
   border: solid 1px #404040;
-  background: #a3a3a3;
+  background: white;
+  font-family: Georgia, serif;
+  font-size: 11px;
 }
 
 .resourceForm {
   border: solid black 1.5px;
-  border-radius: 5px;
+  border-radius: 10px;
   max-width: 150px;
   border-color: black;
-  background-color: #585858;
+  background-color: white;
 }
 
 .resourceFormA {
@@ -176,4 +174,39 @@ img.picture {
 
 .formContainer {
   margin-top: 0.75rem;
+}
+
+#resourceFormCancelButton {
+  position: relative;
+  bottom: 7px;
+  left: 68%;
+  width: 15px;
+  height: auto;
+}
+
+#resourceFormSubmitButton {
+  position: relative;
+  bottom: 7px;
+  left: 64%;
+  width: 15px;
+  height: auto;
+}
+
+div.errMsginner {
+  display: inline-block;
+  margin: 0 auto;
+
+  background-color: orange;
+  color: white !important;
+  padding: 0.5rem;
+  border-radius: 1rem;
+}
+
+div.errMsg {
+  position: absolute;
+  top: 5rem;
+  text-align: center;
+  width: 100%;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
