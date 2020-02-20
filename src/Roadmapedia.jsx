@@ -35,6 +35,8 @@ import {
   updateBasePeriod,
   makeTransitionNodeData
 } from "./helperFunctions/TransitionNodesHelperFunctions.js";
+import "./styles/RmapCreatorToolBar.scss";
+import PreviewCard from "./PreviewCard.jsx";
 
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
@@ -45,7 +47,7 @@ class GraphEditor extends Component {
   constructor(props) {
     super(props);
 
-    this.state = { showManual: false, focus: true };
+    this.state = { showManual: false, focus: true, errMsg: "", preview: false };
 
     this.nodes = initialNodes;
     this.links = initialLinks;
@@ -100,11 +102,7 @@ class GraphEditor extends Component {
     d3.select("#previewIcon").on("click", togglePreview);
     var that = this;
 
-    var GraphEditor = d3.select("div#editorsContainer");
-    var svgContainer = GraphEditor.append("div").attr(
-      "class",
-      "GraphEditorContainer"
-    );
+    var svgContainer = d3.select("div.GraphEditorContainer");
 
     that.force = d3
       .forceSimulation(that.nodes)
@@ -515,7 +513,6 @@ class GraphEditor extends Component {
     restart();
 
     function restart() {
-      console.log("restarted");
       //TODO: selectAll as temporary solution, upgrade to difference update pattern
 
       d3.selectAll("rect.node").remove();
@@ -568,6 +565,7 @@ class GraphEditor extends Component {
               ? null
               : that.mousedownLink;
           that.selectedNode = null;
+          that.forceUpdate();
           restart();
         })
         .merge(path);
@@ -607,10 +605,12 @@ class GraphEditor extends Component {
         .on("end", function() {
           d3.select(this).remove();
         });
+
       var circleGroupsEnter = circleGroups
         .enter()
         .append("g")
         .attr("class", "circleGroup");
+
       var clipPaths = circleGroupsEnter
         .append("clipPath")
         .attr("id", function(d, i) {
@@ -624,6 +624,7 @@ class GraphEditor extends Component {
         .append("svg:circle")
         .attrs({ r: 30, cx: 75, cy: 20, fill: "white", class: "node" })
         .style("stroke-width", 3);
+
       circles
         .merge(circleGroups.selectAll(".node"))
         .attr("stroke", function(d) {
@@ -643,9 +644,10 @@ class GraphEditor extends Component {
           return "url(#clipPath" + i + ")";
         });
 
-      images.merge(circleGroups.selectAll("image")).each(function(d) {
+      images.merge(circleGroups.selectAll(".nodeImage")).each(function(d) {
         var that = this;
-        if (!d.resourceLink || d.resourceLink === "") {
+        if (!d.storedInfo.url || d.storedInfo.url === "") {
+          console.log("setting href to null because", { d });
           d3.select(that).attr("href", null);
         } else {
           var img = new Image();
@@ -654,7 +656,7 @@ class GraphEditor extends Component {
           };
           img.src =
             "https://hosted-besticon.herokuapp.com/icon?url=" +
-            d.resourceLink +
+            d.storedInfo.url +
             "&size=80..120..200";
 
           if (!d3.select(this).attr("href")) {
@@ -668,7 +670,10 @@ class GraphEditor extends Component {
 
       var linkCircles = circleGroupsEnter
         .append("svg:image")
-        .attr("class", "linkOpen")
+        .attr("class", "linkNode");
+
+      linkCircles
+        .merge(d3.selectAll(".linkNode"))
         .attrs({
           width: 15,
           height: 15,
@@ -679,12 +684,12 @@ class GraphEditor extends Component {
           href: open_new_tab
         })
         .on("click", function(d) {
-          if (d.resourceLink) {
-            if (d.resourceLink.includes("https://www.")) {
-              window.open(d.resourceLink, "_blank");
-            } else if (d.resourceLink.includes("www.")) {
-              window.open("https://" + d.resourceLink, "_blank");
-            } else window.open("https://www." + d.resourceLink, "_blank");
+          if (d.storedInfo.url) {
+            if (d.storedInfo.url.includes("https://www.")) {
+              window.open(d.storedInfo.url, "_blank");
+            } else if (d.storedInfo.url.includes("www.")) {
+              window.open("https://" + d.storedInfo.url, "_blank");
+            } else window.open("https://www." + d.storedInfo.url, "_blank");
           }
         });
 
@@ -982,16 +987,28 @@ class GraphEditor extends Component {
     }
 
     function onCircleClick(d, iClicked) {
-      var prevLocation = optionG.attr("transform");
-      that.selectedNode = d;
-      that.selectedLink = null;
-
-      updateStroke();
-
       if (that.isTransitioning) {
         return;
       }
 
+      if (that.state.preview) {
+        console.log({ d }, that.selectedNode);
+        if (that.selectedNode && d.id === that.selectedNode.id) {
+          that.selectedNode = null;
+          that.forceUpdate();
+        } else {
+          that.selectedNode = d;
+          that.forceUpdate();
+        }
+        updateStroke();
+        return;
+      }
+
+      console.log("clicked bruh", that.selectedNode);
+      var prevLocation = optionG.attr("transform");
+      that.selectedNode = d;
+      that.selectedLink = null;
+      updateStroke();
       var selectedNode = that.selectedNode;
 
       if (sameCircleClicked() && isTransitionCircleShowing()) {
@@ -1469,7 +1486,7 @@ class GraphEditor extends Component {
                 selectedNode.storedInfo.url = newURL;
                 selectedNode.storedInfo.picture = newURL;
 
-                circleGroups.selectAll("image").each(function(d) {
+                circleGroups.selectAll(".nodeImage").each(function(d) {
                   if (d !== selectedNode) return;
 
                   var pictureRef = this;
@@ -1515,7 +1532,7 @@ class GraphEditor extends Component {
                 }
 
                 selectedNode.storedInfo.picture = newValue;
-                circleGroups.selectAll("image").each(function(d) {
+                circleGroups.selectAll(".nodeImage").each(function(d) {
                   if (d !== selectedNode) return;
 
                   var pictureRef = this;
@@ -1612,7 +1629,18 @@ class GraphEditor extends Component {
 
         that.force.alphaTarget(0.3).restart();
       } else {
-        alert("Force disabled. Dragging connected nodes changes link distance");
+        that.setState(
+          {
+            errMsg:
+              "Force disabled. Dragging connected nodes changes link distance"
+          },
+          function() {
+            setTimeout(function() {
+              that.setState({ errMsg: "" });
+            }, 3000);
+          }
+        );
+
         that.force.force("link", null).force("charge", null);
       }
 
@@ -1620,13 +1648,69 @@ class GraphEditor extends Component {
       restart();
     }
     function togglePreview() {
-      that.setState({ preview: !that.state.preview });
-      restart();
+      var previousPreview = that.state.preview;
+
+      if (previousPreview === false) {
+        that.setState({ preview: !that.state.preview });
+
+        d3.selectAll(".linkNode")
+          .attr("opactiy", 0)
+          .transition()
+          .duration(300)
+          .attr("opacity", 1)
+          .on("end", restart());
+
+        if (isTransitionCircleShowing()) {
+          if (that.isFormShowing) {
+            closeForm();
+            closeNode();
+          }
+          optionG
+            .selectAll("circle.permanent")
+            .transition()
+            .duration(500)
+            .delay(that.isFormShowing ? 500 : 0)
+            .attr("r", 0);
+          optionG
+            .selectAll("image.permanent")
+            .transition()
+            .duration(500)
+            .delay(that.isFormShowing ? 500 : 0)
+            .attr("width", 0)
+            .attr("height", 0)
+            .attr("x", 0)
+            .attr("y", 0)
+            .on("end", function() {
+              optionG.selectAll("g").remove();
+            });
+        }
+      } else {
+        that.setState({ preview: !that.state.preview });
+
+        d3.selectAll(".linkNode")
+          .attr("opactiy", 1)
+          .transition()
+          .duration(300)
+          .attr("opacity", 0);
+        //.on("end", restart());
+        if (that.selectedNode && that.selectedNode.type === "circle") {
+          var toDispatch = d3
+            .selectAll(".circleGroup")
+            .filter(function(d, i, list) {
+              return d.id === that.selectedNode.id;
+            });
+
+          restart();
+
+          toDispatch.dispatch("click");
+          updateStroke();
+        }
+      }
+    }
+    function isTransitionCircleShowing() {
+      return !optionG.select("circle").empty();
     }
     function textNodeClick(rectData) {
-      function isTransitionCircleShowing() {
-        return !optionG.select("circle").empty();
-      }
       var prevLocation = optionG.attr("transform");
       var duration = 500;
       if (that.selectedNode && that.selectedNode.type === "circle") {
@@ -1772,7 +1856,7 @@ class GraphEditor extends Component {
       that.mousedownNode = null;
       that.selectedNode = null;
       that.startDescription = circleData.description;
-      that.startResourceLink = circleData.resourceLink;
+      that.startResourceLink = circleData.storedInfo.url;
       that.resourceFormCircleData = circleData;
       svg.on(".zoom", null);
       //technically textBox can be reused since it's just a foreginOBject that can be reassigned each time
@@ -1800,7 +1884,7 @@ class GraphEditor extends Component {
           );
           var resourceLink = document.getElementById("input1").value;
           var description = document.getElementById("input2").value;
-          circleData.resourceLink = resourceLink;
+          circleData.storedInfo.url = resourceLink;
           circleData.description = description;
 
           if (
@@ -2243,7 +2327,7 @@ class GraphEditor extends Component {
             that.nodes.map(n => {
               if (n.id === inverseCommand.node.id) {
                 n.description = inverseCommand.description;
-                n.resourceLink = inverseCommand.resourceLink;
+                n.storedInfo.url = inverseCommand.storedInfo.url;
               }
             });
 
@@ -2308,7 +2392,7 @@ class GraphEditor extends Component {
             that.nodes.map(n => {
               if (n.id === actionCommand.node.id) {
                 n.description = actionCommand.description;
-                n.resourceLink = actionCommand.resourceLink;
+                n.storedInfo.url = actionCommand.storedInfo.url;
               }
             });
 
@@ -2320,51 +2404,60 @@ class GraphEditor extends Component {
     }
   }
 
+  componentDidUpdate() {
+    if (this.selectedNode) {
+      var selectedNodeDOM = d3
+        .selectAll("image.nodeImage")
+        .filter(n => n.id === this.selectedNode.id);
+      if (selectedNodeDOM) {
+        var selectedNodeHref = selectedNodeDOM.attr("href");
+        var defaultHref =
+          "https://media0.giphy.com/media/3o7bu3XilJ5BOiSGic/giphy.gif";
+        if (selectedNodeHref === defaultHref) {
+          console.log("it is loading, new query");
+          d3.select("img.cardImg").attr(
+            "src",
+            "https://hosted-besticon.herokuapp.com/icon?url=" +
+              selectedNodeDOM.data()[0].storedInfo.url +
+              "&size=80..120..200"
+          );
+        } else {
+          console.log("it is not loading, use directly");
+          d3.select("img.cardImg").attr("src", selectedNodeDOM.attr("href"));
+        }
+      }
+    }
+  }
+
   render() {
     const errDisplay = (
       <div className="errMsginner">
-        <span style={{ color: "white" }} id="errMsg"></span>
+        <span style={{ color: "white" }} id="errMsg">
+          {this.state.errMsg}
+        </span>
       </div>
     );
+
     return (
       <React.Fragment>
-        <EditorNavbar />
         <div id="editorsContainer" className="">
           {this.state.showManual ? (
             <Manual toggleManual={this.toggleManual} />
           ) : null}
+          <div className="GraphEditorContainer" />
           <div className="errMsg">{errDisplay}</div>
-          <img
-            style={{
-              position: "absolute",
-              top: "60px",
-              right: "15px",
-              width: "50px",
-              cursor: "pointer"
-            }}
-            onClick={this.toggleManual}
-            src={manual}
-          />
-          <div>
+          {this.state.preview && this.selectedNode ? (
+            <PreviewCard node={this.selectedNode.storedInfo} />
+          ) : null}
+          <div className="toolbar">
+            <img className="icon" onClick={this.toggleManual} src={manual} />
             <img
-              style={{
-                position: "absolute",
-                top: "120px",
-                right: "15px",
-                width: "50px",
-                cursor: "pointer"
-              }}
+              className="icon"
               id="focusIcon"
               src={this.state.focus ? focused : notFocused}
             />
             <img
-              style={{
-                position: "absolute",
-                top: "200px",
-                right: "15px",
-                width: "50px",
-                cursor: "pointer"
-              }}
+              className="icon"
               id="previewIcon"
               src={this.state.preview ? preview_purple : preview}
             />

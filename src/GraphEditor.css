@@ -1,5 +1,5 @@
 svg {
-  background-color: #fff;
+  background-color: #f9e3e3;
   cursor: default;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -62,23 +62,12 @@ textarea {
   resize: none;
 }
 
-div.toolbar {
-  float: right;
-  padding: 10px;
-  border: 2px solid black;
-}
-
 img.picture {
   padding: 10px;
 }
 
 .pictureHighlight {
   padding: 10px;
-}
-
-.GraphEditorContainer {
-  float: left;
-  width: 75%;
 }
 
 .circleDiv {
