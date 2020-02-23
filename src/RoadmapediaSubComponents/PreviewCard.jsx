@@ -1,4 +1,4 @@
-import "./styles/PreviewCard.css";
+import "../styles/PreviewCard.css";
 import React from "react";
 const PreviewCard = node => {
   return (
@@ -9,11 +9,13 @@ const PreviewCard = node => {
         <br />
         <span className="container">
           <span className="title">
-            Javascript: how to add text inside of span?
+            {node.node.title ? node.node.title : "No Title"}
           </span>
           <br />
           {console.log(node.node.info)}
-          <span className="description">{node.node.info}</span>
+          <span className="description">
+            {node.node.info ? node.node.info : "No Description"}
+          </span>
           <br />
           <span
             className="description url"
@@ -27,7 +29,8 @@ const PreviewCard = node => {
               }
             }}
           >
-            <i className="fas fa-globe"></i> Open In New Tab
+            <i className="fas fa-globe"></i>{" "}
+            {node.node.url ? " Open In New Tab" : "No URL"}
           </span>
         </span>
       </div>

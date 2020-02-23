@@ -26,6 +26,7 @@ img.cardImg {
   top: 25%;
   transform: translateY(-30px);
   border-radius: 50%;
+  background: silver;
 }
 
 .card {

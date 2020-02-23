@@ -36,12 +36,14 @@ import {
   makeTransitionNodeData
 } from "./helperFunctions/TransitionNodesHelperFunctions.js";
 import "./styles/RmapCreatorToolBar.scss";
-import PreviewCard from "./PreviewCard.jsx";
+import PreviewCard from "./RoadmapediaSubComponents/PreviewCard.jsx";
+import ColorCard from "./RoadmapediaSubComponents/ColorCard.jsx";
 
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
 const initialNodes = [];
 const initialLinks = [];
+var globalRadius = 35;
 
 class GraphEditor extends Component {
   constructor(props) {
@@ -98,9 +100,38 @@ class GraphEditor extends Component {
   }
 
   componentDidMount() {
+    var that = this;
     d3.select("#focusIcon").on("click", toggleFocus);
     d3.select("#previewIcon").on("click", togglePreview);
-    var that = this;
+
+    console.log("color card methods binded");
+    d3.selectAll(".backgroundColorBlock").on("click", function() {
+      var selectedColor = d3.select(this).style("background-color");
+      that.selectedNode.backgroundColor = selectedColor;
+      d3.selectAll(".backgroundColorBlock").attr(
+        "class",
+        "backgroundColorBlock"
+      );
+      d3.select(this).attr("class", "backgroundColorBlock selected");
+      console.log("does that.node share referecne?", that.nodes);
+      restart();
+    });
+
+    d3.selectAll(".strokeColorBlock").on("click", function() {
+      var selectedColor = d3.select(this).style("background-color");
+      that.selectedNode.strokeColor = selectedColor;
+      d3.selectAll(".strokeColorBlock").attr("class", "strokeColorBlock");
+      d3.select(this).attr("class", "strokeColorBlock selected");
+      restart();
+    });
+
+    d3.selectAll(".numberBlock").on("click", function() {
+      var selectedID = d3.select(this).node().innerText;
+      that.selectedNode.groupID = selectedID;
+      d3.selectAll(".numberBlock").attr("class", "numberBlock");
+      d3.select(this).attr("class", "numberBlock selectedNumber");
+      restart();
+    });
 
     var svgContainer = d3.select("div.GraphEditorContainer");
 
@@ -231,7 +262,6 @@ class GraphEditor extends Component {
     /* change1:
     let circles = container.append("svg:g").selectAll("circle");
     let images = container.append("svg:g").selectAll("images");
-    let linkCircles = container.append("svg:g").selectAll("image");
     let clipPaths = container.append("svg:defs").selectAll("clipPath");
 
 */
@@ -296,7 +326,10 @@ class GraphEditor extends Component {
             height: 40,
             text: [""],
             x: that.selectedNode.x + that.selectedNode.width + 100,
-            y: that.selectedNode.y
+            y: that.selectedNode.y,
+            backgroundColor: "white",
+            strokeColor: "black",
+            groupID: null
           };
           that.point = null;
           that.nodes.push(node);
@@ -342,7 +375,10 @@ class GraphEditor extends Component {
             height: 40,
             text: [""],
             x: that.point[0],
-            y: that.point[1]
+            y: that.point[1],
+            backgroundColor: "white",
+            strokeColor: "black",
+            groupID: null
           };
           that.point = null;
           that.nodes.push(node);
@@ -400,8 +436,12 @@ class GraphEditor extends Component {
             storedInfo: {
               url: null,
               info: null,
-              picture: null
-            }
+              picture: null,
+              title: null
+            },
+            backgroundColor: "white",
+            strokeColor: "black",
+            groupID: null
           };
           that.point = null;
           that.nodes.push(node);
@@ -435,7 +475,7 @@ class GraphEditor extends Component {
 
           that.selectedNode = that.nodes[that.nodes.length - 1];
           restart();
-
+          that.forceUpdate();
           toDispatch.dispatch("click");
         } else {
           const node = {
@@ -449,8 +489,12 @@ class GraphEditor extends Component {
             storedInfo: {
               url: null,
               info: null,
-              picture: null
-            }
+              picture: null,
+              title: null
+            },
+            backgroundColor: "white",
+            strokeColor: "black",
+            groupID: null
           };
           that.point = null;
           that.nodes.push(node);
@@ -618,33 +662,43 @@ class GraphEditor extends Component {
           return "clipPath" + i;
         })
         .append("circle")
-        .attrs({ cx: 75, cy: 20, r: 30 });
+        .attrs({ cx: 75, cy: 20, r: globalRadius });
 
       var circles = circleGroupsEnter
         .append("svg:circle")
-        .attrs({ r: 30, cx: 75, cy: 20, fill: "white", class: "node" })
+        .attrs({
+          r: globalRadius,
+          cx: 75,
+          cy: 20,
+          fill: "white",
+          class: "node"
+        })
         .style("stroke-width", 3);
 
       circles
-        .merge(circleGroups.selectAll(".node"))
-        .attr("stroke", function(d) {
-          console.log("here, ", { d }, that.selectedNode);
+        .merge(d3.selectAll(".node"))
+        .attr("stroke", function(d, i) {
           var selectedNode = that.selectedNode;
           if (that.selectedNode && d.id === that.selectedNode.id) {
             return "url(#svgGradient)";
           }
-          return "black";
+          return d.strokeColor;
+        })
+        .attr("fill", function(d) {
+          if (d.backgroundColor) {
+            return d.backgroundColor;
+          }
         });
 
       var images = circleGroupsEnter
         .append("svg:image")
         .attr("class", "nodeImage")
-        .attrs({ width: 60, height: 60, x: 45, y: -10 })
+        .attrs({ width: globalRadius* 2, height: globalRadius* 2, x: 40, y: -15 })
         .attr("clip-path", function(d, i) {
           return "url(#clipPath" + i + ")";
         });
 
-      images.merge(circleGroups.selectAll(".nodeImage")).each(function(d) {
+      images.merge(d3.selectAll(".nodeImage")).each(function(d) {
         var that = this;
         if (!d.storedInfo.url || d.storedInfo.url === "") {
           console.log("setting href to null because", { d });
@@ -667,34 +721,8 @@ class GraphEditor extends Component {
           }
         }
       });
-
-      var linkCircles = circleGroupsEnter
-        .append("svg:image")
-        .attr("class", "linkNode");
-
-      linkCircles
-        .merge(d3.selectAll(".linkNode"))
-        .attrs({
-          width: 15,
-          height: 15,
-          fill: "blue",
-          x: 110,
-          y: 45,
-          opacity: that.state.preview ? 1 : 0,
-          href: open_new_tab
-        })
-        .on("click", function(d) {
-          if (d.storedInfo.url) {
-            if (d.storedInfo.url.includes("https://www.")) {
-              window.open(d.storedInfo.url, "_blank");
-            } else if (d.storedInfo.url.includes("www.")) {
-              window.open("https://" + d.storedInfo.url, "_blank");
-            } else window.open("https://www." + d.storedInfo.url, "_blank");
-          }
-        });
-
-      circleGroups = circleGroups
-        .merge(circleGroupsEnter)
+      circleGroups = circleGroups.merge(circleGroupsEnter);
+      circleGroups
         .on("mousedown", (d, i) => {
           nodeMouseDown(d);
         })
@@ -968,7 +996,7 @@ class GraphEditor extends Component {
           .selectAll("circle")
           .transition()
           .duration(that.shouldTransitionGsEnterAnimation ? 500 : 0)
-          .attr("r", 12.5)
+          .attr("r", 10)
           .on("start", function() {})
           .on("end", function() {
             that.isTransitioning = false;
@@ -978,10 +1006,10 @@ class GraphEditor extends Component {
           .transition()
           .duration(that.shouldTransitionGsEnterAnimation ? 500 : 0)
           .attrs({
-            width: 20,
-            height: 20,
-            x: -10,
-            y: -10
+            width: 16,
+            height: 16,
+            x: -8,
+            y: -8
           });
       }
     }
@@ -1007,10 +1035,11 @@ class GraphEditor extends Component {
       console.log("clicked bruh", that.selectedNode);
       var prevLocation = optionG.attr("transform");
       that.selectedNode = d;
+
       that.selectedLink = null;
       updateStroke();
       var selectedNode = that.selectedNode;
-
+      that.forceUpdate();
       if (sameCircleClicked() && isTransitionCircleShowing()) {
         if (that.lastClickedNode) {
           closeForm();
@@ -1034,6 +1063,7 @@ class GraphEditor extends Component {
             that.lastClickedCircleD = d;
             that.isFormShowing = false;
             that.selectedNode = null;
+            that.forceUpdate();
           });
 
         optionG
@@ -1134,7 +1164,7 @@ class GraphEditor extends Component {
 
               var fakeNodesData = makeTransitionNodeData(2);
               if (selectedNode.storedInfo.picture !== null) {
-                fakeNodesData = makeTransitionNodeData(3);
+                fakeNodesData = makeTransitionNodeData(4);
               }
 
               var newGs = optionG
@@ -1173,7 +1203,7 @@ class GraphEditor extends Component {
                 .selectAll("circle.temp")
                 .transition()
                 .duration(duration)
-                .attr("r", 12.5)
+                .attr("r", 10)
                 .on("start", function() {
                   that.isTransitioning = true;
                 });
@@ -1181,10 +1211,10 @@ class GraphEditor extends Component {
               transitionImages
                 .transition()
                 .duration(duration)
-                .attr("width", 20)
-                .attr("height", 20)
-                .attr("x", -10)
-                .attr("y", -10);
+                .attr("width", 16)
+                .attr("height", 16)
+                .attr("x", -8)
+                .attr("y", -8);
             }
           })
           .on("end", function(d2, i) {
@@ -1208,9 +1238,14 @@ class GraphEditor extends Component {
                     href:
                       "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
                   });
+                  that.transitionGDataset.push({
+                    href:
+                      "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                  });
                 }
-              } else if (that.transitionGDataset.length === 3) {
+              } else if (that.transitionGDataset.length === 4) {
                 if (selectedNode.storedInfo.picture === null) {
+                  that.transitionGDataset.pop();
                   that.transitionGDataset.pop();
                 }
               }
@@ -1229,7 +1264,7 @@ class GraphEditor extends Component {
           .delay(that.isFormShowing ? duration : 0)
           .attr("r", 0)
           .on("end", function() {
-            d3.select(this).attr("r", 12.5);
+            d3.select(this).attr("r", 10);
           });
 
         prevTransitionCircles
@@ -1243,10 +1278,10 @@ class GraphEditor extends Component {
           .attr("y", 0)
           .on("end", function() {
             d3.select(this)
-              .attr("width", 20)
-              .attr("height", 20)
-              .attr("x", -10)
-              .attr("y", -10);
+              .attr("width", 16)
+              .attr("height", 16)
+              .attr("x", -8)
+              .attr("y", -8);
           });
 
         that.isFormShowing = false;
@@ -1257,7 +1292,7 @@ class GraphEditor extends Component {
         if (d.storedInfo.picture === null) {
           that.transitionGDataset = makeTransitionNodeData(2);
         } else {
-          that.transitionGDataset = makeTransitionNodeData(3);
+          that.transitionGDataset = makeTransitionNodeData(4);
         }
         that.lastClickedCircle = iClicked;
         that.lastClickedCircleD = d;
@@ -1276,8 +1311,8 @@ class GraphEditor extends Component {
     function onTransitionNodeClick(dClicked, iClicked, list) {
       var clickedNode = d3.select(this);
       var selectedNode = that.selectedNode;
-      var base = dClicked.basePeriod,
-        radius = 30;
+      var base = dClicked.basePeriod;
+      that.forceUpdate();
 
       if (that.isFormShowing === true) {
         closeForm();
@@ -1285,18 +1320,21 @@ class GraphEditor extends Component {
         that.lastClickedNode
           .transition()
           .duration(500)
-          .attr("transform", d => getTranslateString(radius, 0))
+          .attr("transform", d => getTranslateString(globalRadius, 0))
 
           .on("end", function(d, i) {
             // if clicked on URL node again when no picture node
-            if (list.length < 3 && that.lastClickedId === 0) {
+            if (list.length < 4 && that.lastClickedId === 0) {
               if (iClicked === 0) {
                 selectedNode.storedInfo.picture = "";
                 that.transitionGDataset.push({
                   href:
                     "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
                 });
-
+                that.transitionGDataset.push({
+                  href:
+                    "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                });
                 that.shouldTransitionGsAnimate = true;
                 that.shouldTransitionGsEnterAnimation = true;
                 restartOptionG();
@@ -1306,6 +1344,11 @@ class GraphEditor extends Component {
                   href:
                     "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
                 });
+                that.transitionGDataset.push({
+                  href:
+                    "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                });
+
                 that.transitionGs = optionG
                   .selectAll("g")
                   .data(that.transitionGDataset);
@@ -1355,8 +1398,8 @@ class GraphEditor extends Component {
             }
             // clicked on URL node with picture node
             else if (
-              list.length === 3 ||
-              (list.length < 3 && that.lastClickedId !== 0)
+              list.length === 4 ||
+              (list.length < 4 && that.lastClickedId !== 0)
             ) {
               if (iClicked === that.lastClickedId) {
                 that.transitionGs
@@ -1395,14 +1438,14 @@ class GraphEditor extends Component {
         return;
       }
       that.isFormShowing = true;
-      var radius = 30;
+
       optionG
         .select("foreignObject")
         .lower()
         .attrs({
           width: 300,
           height: 100,
-          x: radius
+          x: globalRadius
         });
 
       that.transitionGs
@@ -1419,7 +1462,7 @@ class GraphEditor extends Component {
         });
 
       function shouldAnimate() {
-        if (iClicked === 1 && list.length === 3) {
+        if (iClicked === 1 && list.length === 4) {
           return false;
         }
         return true;
@@ -1453,6 +1496,8 @@ class GraphEditor extends Component {
                 return "Talk about this resource!";
               case 2:
                 return "Custom Node image URL";
+              case 3:
+                return "Custom title";
               default:
             }
           })
@@ -1471,6 +1516,8 @@ class GraphEditor extends Component {
                   return null;
                 }
                 return selectedNode.storedInfo.picture;
+              case 3:
+                return selectedNode.storedInfo.title;
               default:
             }
           })
@@ -1561,6 +1608,10 @@ class GraphEditor extends Component {
                   }
                 });
                 break;
+              case 3:
+                selectedNode.storedInfo.title = d3.select(
+                  "#currentInput"
+                )._groups[0][0].value;
               default:
             }
           });
@@ -1653,13 +1704,6 @@ class GraphEditor extends Component {
       if (previousPreview === false) {
         that.setState({ preview: !that.state.preview });
 
-        d3.selectAll(".linkNode")
-          .attr("opactiy", 0)
-          .transition()
-          .duration(300)
-          .attr("opacity", 1)
-          .on("end", restart());
-
         if (isTransitionCircleShowing()) {
           if (that.isFormShowing) {
             closeForm();
@@ -1687,11 +1731,6 @@ class GraphEditor extends Component {
       } else {
         that.setState({ preview: !that.state.preview });
 
-        d3.selectAll(".linkNode")
-          .attr("opactiy", 1)
-          .transition()
-          .duration(300)
-          .attr("opacity", 0);
         //.on("end", restart());
         if (that.selectedNode && that.selectedNode.type === "circle") {
           var toDispatch = d3
@@ -1736,10 +1775,11 @@ class GraphEditor extends Component {
       }
       if (rectData === that.selectedNode) {
         that.selectedNode = null;
+        that.forceUpdate();
         updateStroke();
       } else {
         that.selectedNode = rectData;
-
+        that.forceUpdate();
         updateStroke();
       }
     }
@@ -1851,97 +1891,12 @@ class GraphEditor extends Component {
 
       paragraph.node().focus();
     }
-    function resourceNodeDoubleClick(circleData) {
-      //not changing circle opacity to 0 right now because form should be larger than circle
-      that.mousedownNode = null;
-      that.selectedNode = null;
-      that.startDescription = circleData.description;
-      that.startResourceLink = circleData.storedInfo.url;
-      that.resourceFormCircleData = circleData;
-      svg.on(".zoom", null);
-      //technically textBox can be reused since it's just a foreginOBject that can be reassigned each time
-      resourceForm = resourceForm
-        .attr("x", circleData.x)
-        .attr("y", circleData.y)
-        .attr("width", 150)
-        .attr("height", 200);
-      resourceForm
-        .append("xhtml:div")
-        .html(
-          "<div class='resourceForm'><form autocomplete='off'><div class='formContainer'><a class='resourceFormA'>Resource URL</a><input id='input1'/><br/><a class='resourceFormA'>Description</a><textarea id='input2'></textarea></div></form><img id='resourceFormSubmitButton'></img><img id='resourceFormCancelButton'></img></div>"
-        );
 
-      d3.select("#resourceFormSubmitButton")
-        .attr("src", check)
-        .on("click", function() {
-          svg.call(
-            d3
-              .zoom()
-              .scaleExtent([0.1, 4])
-              .on("zoom", function() {
-                container.attr("transform", d3.event.transform);
-              })
-          );
-          var resourceLink = document.getElementById("input1").value;
-          var description = document.getElementById("input2").value;
-          circleData.storedInfo.url = resourceLink;
-          circleData.description = description;
-
-          if (
-            that.startDescription !== description ||
-            that.startResourceLink !== resourceLink
-          ) {
-            var command = {
-              action: {
-                type: "modifyResourceNode",
-                node: circleData,
-                description: description,
-                resourceLink: resourceLink
-              },
-              inverse: {
-                type: "modifyResourceNode",
-                node: circleData,
-                description: that.startDescription,
-                resourceLink: that.startResourceLink
-              }
-            };
-
-            that.storeToHistory(command);
-          }
-
-          that.startDescription = null;
-          that.startResourceLink = null;
-          d3.selectAll("foreignObject").remove();
-          textBox = container.append("foreignObject");
-          resourceForm = container
-            .append("foreignObject")
-            .attr("class", "resourceForm");
-
-          restart();
-        });
-
-      d3.select("#resourceFormCancelButton")
-        .attr("src", close)
-        .on("click", function() {
-          svg.call(
-            d3
-              .zoom()
-              .scaleExtent([0.1, 4])
-              .on("zoom", function() {
-                container.attr("transform", d3.event.transform);
-              })
-          );
-
-          d3.selectAll("foreignObject").remove();
-          textBox = container.append("foreignObject");
-          resourceForm = container
-            .append("foreignObject")
-            .attr("class", "resourceForm");
-        });
-    }
     function resourceNodeMouseUp(d) {
       var mousedownNode = that.mousedownNode,
         selectedNode = that.selectedNode;
+
+      that.forceUpdate();
 
       if (!that.mousedownNode) return;
 
@@ -1960,6 +1915,7 @@ class GraphEditor extends Component {
       if (that.mouseupNode === that.mousedownNode) {
         that.mousedownNode = null;
         that.selectedNode = null;
+        that.forceUpdate();
         return;
       }
 
@@ -2082,7 +2038,6 @@ class GraphEditor extends Component {
         .attr("visibility", isOptionGroupFormVisible() ? "hidden" : "visible")
         .attr("transform", function(d) {
           if (that.selectedNode.type === "circle") {
-            var radius = 30;
             return getTranslateString(
               that.selectedNode.x + 115,
               that.selectedNode.y - 5
@@ -2100,6 +2055,8 @@ class GraphEditor extends Component {
       //WHY IS CLICK() TRIGGERING FOR ONLY FOR CIRCULAR NODES, DEBUG?
       var mousedownNode = that.mousedownNode,
         selectedNode = that.selectedNode;
+
+      that.forceUpdate();
 
       if (that.inConnectMode) {
         optionGroup
@@ -2405,7 +2362,7 @@ class GraphEditor extends Component {
   }
 
   componentDidUpdate() {
-    if (this.selectedNode) {
+    if (this.selectedNode && this.selectedNode.type === "circle") {
       var selectedNodeDOM = d3
         .selectAll("image.nodeImage")
         .filter(n => n.id === this.selectedNode.id);
@@ -2437,7 +2394,8 @@ class GraphEditor extends Component {
         </span>
       </div>
     );
-
+    console.log(d3.schemeCategory10);
+    var colorArray = d3.schemeCategory10.slice(0, 8);
     return (
       <React.Fragment>
         <div id="editorsContainer" className="">
@@ -2446,7 +2404,14 @@ class GraphEditor extends Component {
           ) : null}
           <div className="GraphEditorContainer" />
           <div className="errMsg">{errDisplay}</div>
-          {this.state.preview && this.selectedNode ? (
+
+          <ColorCard
+            opacity={!this.state.preview && this.selectedNode ? 1 : 0}
+          />
+
+          {this.state.preview &&
+          this.selectedNode &&
+          this.selectedNode.type === "circle" ? (
             <PreviewCard node={this.selectedNode.storedInfo} />
           ) : null}
           <div className="toolbar">

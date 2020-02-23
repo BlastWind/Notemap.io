@@ -1,0 +1,91 @@
+.colorCardContainer {
+  position: absolute;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-radius: 25px;
+  width: 250px;
+  height: 320px;
+  background: #fff;
+  box-shadow: 5px 5px 5px grey;
+  right: 10%;
+  top: 50%;
+  transform: translateY(-160px);
+  font-family: sans-serif;
+  font-weight: 550;
+}
+
+.backgroundColorGrid {
+  padding-bottom: 1em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  /*background: #e6e3ce;*/
+  justify-content: space-evenly;
+  align-content: space-between;
+}
+
+.strokeColorGrid {
+  padding-bottom: 1em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  /*background: #e6e3ce;*/
+  justify-content: space-evenly;
+  align-content: space-between;
+}
+
+.numberGrid {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-evenly;
+  align-content: space-between;
+}
+
+.numberBlock {
+  margin-top: 10px;
+  margin-left: 10px;
+  margin-right: 10px;
+  background: #e6e3ce;
+  height: 20px;
+  text-align: center;
+  width: 60px;
+  border-radius: 5px;
+}
+
+.colorCardA {
+  position: relative;
+  left: 10px;
+}
+
+.colorCardContainerInner {
+  position: relative;
+  top: 1.5em;
+}
+
+.backgroundColorBlock {
+  cursor: pointer;
+  margin-top: 12.5px;
+  margin-left: 10px;
+  margin-right: 10px;
+  width: 40px;
+  height: 20px;
+  border-radius: 5px;
+}
+
+.strokeColorBlock {
+  cursor: pointer;
+  margin-top: 12.5px;
+  margin-left: 10px;
+  margin-right: 10px;
+  width: 40px;
+  height: 20px;
+  border-radius: 5px;
+}
+
+.selected {
+  border: 1px solid black;
+}
+
+.selectedNumber {
+  border: 1px solid;
+}

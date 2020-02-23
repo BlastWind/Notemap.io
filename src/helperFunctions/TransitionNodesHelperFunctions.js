@@ -1,3 +1,5 @@
+var globalRadius = 35;
+
 export function getTranslateString(x, y) {
   return "translate(" + x + " " + y + ")";
 }
@@ -83,37 +85,36 @@ export function decodeTranslateString(
 }
 
 export function translateFromCenterToDefault() {
-  var radius = 30;
   return function(d, i, list) {
     var periodSpaceBetween = Math.PI / (list.length + 1);
     updateBasePeriod(d, Math.PI / 2 - periodSpaceBetween * (i + 1));
-    var x = radius * Math.cos(Math.PI / 2 - periodSpaceBetween * (i + 1));
-    var y = -radius * Math.sin(Math.PI / 2 - periodSpaceBetween * (i + 1));
+    var x = globalRadius * Math.cos(Math.PI / 2 - periodSpaceBetween * (i + 1));
+    var y =
+      -globalRadius * Math.sin(Math.PI / 2 - periodSpaceBetween * (i + 1));
 
     return getTranslateString(x, y);
   };
 }
 
 export function translateToDefault() {
-  var radius = 30;
   return function(d, i, list) {
     var periodSpaceBetween = Math.PI / (list.length + 1);
     var goTo = Math.PI / 2 - periodSpaceBetween * (i + 1);
 
     return function(t) {
-      var x = radius * Math.cos(d.basePeriod + (goTo - d.basePeriod) * t);
-      var y = -radius * Math.sin(d.basePeriod + (goTo - d.basePeriod) * t);
+      var x = globalRadius * Math.cos(d.basePeriod + (goTo - d.basePeriod) * t);
+      var y =
+        -globalRadius * Math.sin(d.basePeriod + (goTo - d.basePeriod) * t);
       return getTranslateString(x, y);
     };
   };
 }
 
 export function translateBackLastMoved(base) {
-  var radius = 30;
   return function(d, i, list) {
     return function(t) {
-      var y = -radius * Math.sin(-base * t + d.basePeriod);
-      var x = +radius * Math.cos(-base * t + d.basePeriod);
+      var y = -globalRadius * Math.sin(-base * t + d.basePeriod);
+      var x = +globalRadius * Math.cos(-base * t + d.basePeriod);
       return getTranslateString(x, y);
     };
   };
@@ -133,22 +134,28 @@ export function makeTransitionNodeData(length) {
       href: "https://image.flaticon.com/icons/png/512/84/84380.png"
     }
   ];
-  if (length === 3) {
-    temp.push({
-      href:
-        "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
-    });
+  if (length === 4) {
+    console.log("uhh");
+    temp.push(
+      {
+        href:
+          "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
+      },
+      {
+        href:
+          "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+      }
+    );
   }
 
+  console.log("to return", { temp });
   return temp;
 }
 
 export function transformCloseCurrentNode(d) {
-  var radius = 30;
-  return getTranslateString(radius, 0);
+  return getTranslateString(globalRadius, 0);
 }
 
 export function transformOpenCurrentNode(d) {
-  var radius = 30;
-  return getTranslateString(radius + 175, 0);
+  return getTranslateString(globalRadius + 175, 0);
 }
