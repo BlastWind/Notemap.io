@@ -14,6 +14,8 @@ import check from "./svgs/check.svg";
 import preview from "./svgs/preview.svg";
 import preview_purple from "./svgs/preview_purple.svg";
 import open_new_tab from "./svgs/open_new_tab.png";
+import theming from "./svgs/painting.svg";
+import theming_purple from "./svgs/painting_purple.svg";
 import {
   rectOnClickSetUp,
   rectOnClickBlurCurrentText
@@ -49,7 +51,13 @@ class GraphEditor extends Component {
   constructor(props) {
     super(props);
 
-    this.state = { showManual: false, focus: true, errMsg: "", preview: false };
+    this.state = {
+      showManual: false,
+      focus: true,
+      errMsg: "",
+      preview: false,
+      theming: false
+    };
 
     this.nodes = initialNodes;
     this.links = initialLinks;
@@ -103,6 +111,7 @@ class GraphEditor extends Component {
     var that = this;
     d3.select("#focusIcon").on("click", toggleFocus);
     d3.select("#previewIcon").on("click", togglePreview);
+    d3.select("#themeIcon").on("click", toggleTheme);
 
     console.log("color card methods binded");
     d3.selectAll(".backgroundColorBlock").on("click", function() {
@@ -555,7 +564,7 @@ class GraphEditor extends Component {
       .on("keypress", keypress)
       .on("resize", resize);
     restart();
-
+    console.clear();
     function restart() {
       //TODO: selectAll as temporary solution, upgrade to difference update pattern
 
@@ -693,7 +702,12 @@ class GraphEditor extends Component {
       var images = circleGroupsEnter
         .append("svg:image")
         .attr("class", "nodeImage")
-        .attrs({ width: globalRadius* 2, height: globalRadius* 2, x: 40, y: -15 })
+        .attrs({
+          width: globalRadius * 2,
+          height: globalRadius * 2,
+          x: 40,
+          y: -15
+        })
         .attr("clip-path", function(d, i) {
           return "url(#clipPath" + i + ")";
         });
@@ -701,7 +715,6 @@ class GraphEditor extends Component {
       images.merge(d3.selectAll(".nodeImage")).each(function(d) {
         var that = this;
         if (!d.storedInfo.url || d.storedInfo.url === "") {
-          console.log("setting href to null because", { d });
           d3.select(that).attr("href", null);
         } else {
           var img = new Image();
@@ -831,8 +844,9 @@ class GraphEditor extends Component {
           if (that.selectedNode && d.id === that.selectedNode.id) {
             return "url(#svgGradient)";
           }
-          return "black";
+          return d.strokeColor;
         })
+        .attr("fill", d => d.backgroundColor)
         .on("dblclick", d => textNodeDblClick(d))
         .on("mousedown", d => nodeMouseDown(d))
         .on("mouseup", resourceNodeMouseUp)
@@ -1020,7 +1034,7 @@ class GraphEditor extends Component {
       }
 
       if (that.state.preview) {
-        console.log({ d }, that.selectedNode);
+        //console.log({ d }, that.selectedNode);
         if (that.selectedNode && d.id === that.selectedNode.id) {
           that.selectedNode = null;
           that.forceUpdate();
@@ -1028,16 +1042,12 @@ class GraphEditor extends Component {
           that.selectedNode = d;
           that.forceUpdate();
         }
-        updateStroke();
         return;
       }
-
-      console.log("clicked bruh", that.selectedNode);
       var prevLocation = optionG.attr("transform");
       that.selectedNode = d;
-
+      restart();
       that.selectedLink = null;
-      updateStroke();
       var selectedNode = that.selectedNode;
       that.forceUpdate();
       if (sameCircleClicked() && isTransitionCircleShowing()) {
@@ -1064,6 +1074,7 @@ class GraphEditor extends Component {
             that.isFormShowing = false;
             that.selectedNode = null;
             that.forceUpdate();
+            restart();
           });
 
         optionG
@@ -1746,6 +1757,33 @@ class GraphEditor extends Component {
         }
       }
     }
+    function toggleTheme() {
+      var prevTheme = that.state.theming;
+
+      if (prevTheme === true) {
+        // we are turning off
+        // if toggling without selectedNode, render takes care of correct logic
+        d3.select(".colorCardContainer")
+          .style("opacity", 0)
+          .attr("visibility", "visible")
+          .transition()
+          .duration(500)
+          .style("opacity", 1);
+
+        that.setState({ theming: false });
+      } else {
+        that.setState({ theming: true });
+        //turn on
+        d3.select(".colorCardContainer")
+          .style("opacity", 1)
+          .transition()
+          .duration(500)
+          .style("opacity", 0)
+          .on("end", function() {
+            d3.select(this).attr("visibility", "hidden");
+          });
+      }
+    }
     function isTransitionCircleShowing() {
       return !optionG.select("circle").empty();
     }
@@ -1776,11 +1814,11 @@ class GraphEditor extends Component {
       if (rectData === that.selectedNode) {
         that.selectedNode = null;
         that.forceUpdate();
-        updateStroke();
+        restart();
       } else {
         that.selectedNode = rectData;
         that.forceUpdate();
-        updateStroke();
+        restart();
       }
     }
 
@@ -1946,21 +1984,23 @@ class GraphEditor extends Component {
       console.log("our selection", allNodeSelection);
       if (!that.selectedNode) {
         allNodeSelection.each(function() {
-          d3.select(this).attr("stroke", "black");
+          d3.select(this).attr("stroke", that.selectedNode.strokeColor);
         });
         return;
       }
 
       allNodeSelection.each(function(eachNodeData) {
+        console.log(eachNodeData.id === that.selectedNode.id, eachNodeData);
         if (eachNodeData.id === that.selectedNode.id) {
           var prevStyle = d3.select(this).attr("stroke");
+          console.log(prevStyle);
           if (prevStyle === "url(#svgGradient)") {
-            d3.select(this).attr("stroke", "black");
+            d3.select(this).attr("stroke", eachNodeData.strokeColor);
           } else {
             d3.select(this).attr("stroke", "url(#svgGradient)");
           }
         } else {
-          d3.select(this).attr("stroke", "black");
+          d3.select(this).attr("stroke", eachNodeData.strokeColor);
         }
       });
     }
@@ -2371,7 +2411,6 @@ class GraphEditor extends Component {
         var defaultHref =
           "https://media0.giphy.com/media/3o7bu3XilJ5BOiSGic/giphy.gif";
         if (selectedNodeHref === defaultHref) {
-          console.log("it is loading, new query");
           d3.select("img.cardImg").attr(
             "src",
             "https://hosted-besticon.herokuapp.com/icon?url=" +
@@ -2379,7 +2418,6 @@ class GraphEditor extends Component {
               "&size=80..120..200"
           );
         } else {
-          console.log("it is not loading, use directly");
           d3.select("img.cardImg").attr("src", selectedNodeDOM.attr("href"));
         }
       }
@@ -2394,7 +2432,6 @@ class GraphEditor extends Component {
         </span>
       </div>
     );
-    console.log(d3.schemeCategory10);
     var colorArray = d3.schemeCategory10.slice(0, 8);
     return (
       <React.Fragment>
@@ -2425,6 +2462,11 @@ class GraphEditor extends Component {
               className="icon"
               id="previewIcon"
               src={this.state.preview ? preview_purple : preview}
+            />
+            <img
+              className="icon"
+              id="themeIcon"
+              src={this.state.theming ? theming_purple : theming}
             />
           </div>
         </div>
