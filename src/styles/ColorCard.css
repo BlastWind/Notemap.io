@@ -4,14 +4,19 @@
   padding-right: 5px;
   border-radius: 25px;
   width: 250px;
-  height: 320px;
-  background: #fff;
+  height: 240px;
+  background: #c08ff58c;
   box-shadow: 5px 5px 5px grey;
   right: 10%;
   top: 50%;
-  transform: translateY(-160px);
+  transform: translateY(-120px);
   font-family: sans-serif;
   font-weight: 550;
+}
+
+.text {
+  height: 315px;
+  transform: translateY(-160px);
 }
 
 .backgroundColorGrid {
@@ -83,9 +88,59 @@
 }
 
 .selected {
-  border: 1px solid black;
+  border: 3px solid transparent;
+  -moz-border-image: -moz-linear-gradient(top, red 0%, blue 100%);
+  -webkit-border-image: -webkit-linear-gradient(top, #f0e2d0 0%, #c08b62 100%);
+  border-image: linear-gradient(to right, red 0%, blue 100%);
+  -webkit-border-image-slice: 2;
+  border-image-slice: 2;
 }
+
 
 .selectedNumber {
   border: 1px solid;
+}
+
+.textSizeContainer {
+  margin-top: 12.5px;
+  text-align: center;
+}
+
+.input-number {
+  width: 80px;
+  padding: 0 12px;
+  vertical-align: top;
+  text-align: center;
+  outline: none;
+}
+.input-number,
+.input-number-decrement,
+.input-number-increment {
+  border: 1px solid #ccc;
+  height: 40px;
+  user-select: none;
+  border-radius: 0px;
+}
+.input-number-decrement,
+.input-number-increment {
+  display: inline-block;
+  width: 30px;
+  line-height: 38px;
+  background: #f1f1f1;
+  color: #444;
+  text-align: center;
+  font-weight: bold;
+  cursor: pointer;
+
+  &:active {
+    background: #ddd;
+  }
+}
+.input-number-decrement {
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+}
+.input-number-increment {
+  border-left: none;
+  border-radius: 0 4px 4px 0;
 }

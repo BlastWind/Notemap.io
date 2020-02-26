@@ -159,3 +159,14 @@ export function transformCloseCurrentNode(d) {
 export function transformOpenCurrentNode(d) {
   return getTranslateString(globalRadius + 175, 0);
 }
+
+export function updateLastClicked(
+  app,
+  newClickedId,
+  newClickedNode,
+  newClickedData
+) {
+  app.lastClickedId = newClickedId;
+  app.lastClickedNode = newClickedNode;
+  app.lastClickedD = newClickedData;
+}
