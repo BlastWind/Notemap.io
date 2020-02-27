@@ -40,7 +40,7 @@ export function windowClick(DOMEle, app) {
   app.inConnectMode = false;
 
   //    optionGroupConnector.attr("visibility", "hidden");
-
+  console.log("mousedown node", app.mousedownNode);
   //triggers if there is no mouse down node
   if (d3.event.ctrlKey && !app.mousedownNode) {
     if (app.state.preview) {
@@ -100,7 +100,7 @@ export function windowMouseUp(DOMEle, app) {
     app.dragLine.classed("hidden", true).style("marker-end", "");
   if (app.mousedownNode && app.mouseupNode) {
     if (app.mousedownNode.type === "text" || app.mouseupNode.type === "text") {
-      windowClick(DOMEle, app);
+      // use to need windowclick, now no need for some reason
     }
   }
 }

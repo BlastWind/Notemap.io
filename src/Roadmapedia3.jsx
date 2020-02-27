@@ -729,7 +729,7 @@ class GraphEditor extends Component {
             d3.select(that).attr("href", img.src);
           };
           img.src =
-            "https://hosted-besticon.herokuapp.com/icon?url=" +
+            "https://forked-besticon.herokuapp.com/icon?url=" +
             d.storedInfo.url +
             "&size=80..120..200";
 
@@ -1261,7 +1261,7 @@ class GraphEditor extends Component {
                   });
                   that.transitionGDataset.push({
                     href:
-                      "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                     "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
                   });
                 }
               } else if (that.transitionGDataset.length === 4) {
@@ -1354,7 +1354,7 @@ class GraphEditor extends Component {
                 });
                 that.transitionGDataset.push({
                   href:
-                    "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                   "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
                 });
                 that.shouldTransitionGsAnimate = true;
                 that.shouldTransitionGsEnterAnimation = true;
@@ -1367,7 +1367,7 @@ class GraphEditor extends Component {
                 });
                 that.transitionGDataset.push({
                   href:
-                    "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                   "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
                 });
 
                 that.transitionGs = optionG
@@ -1575,7 +1575,7 @@ class GraphEditor extends Component {
 
                     img.onerror = function() {};
                     img.src =
-                      "https://hosted-besticon.herokuapp.com/icon?url=" +
+                      "https://forked-besticon.herokuapp.com/icon?url=" +
                       selectedNode.storedInfo.picture +
                       "&size=80..120..200";
 
@@ -2522,7 +2522,7 @@ class GraphEditor extends Component {
         if (selectedNodeHref === defaultHref) {
           d3.select("img.cardImg").attr(
             "src",
-            "https://hosted-besticon.herokuapp.com/icon?url=" +
+            "https://forked-besticon.herokuapp.com/icon?url=" +
               selectedNodeDOM.data()[0].storedInfo.url +
               "&size=80..120..200"
           );

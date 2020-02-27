@@ -83,62 +83,9 @@ import "./styles/RmapCreatorToolBar.scss";
 import PreviewCard from "./RoadmapediaSubComponents/PreviewCard.jsx";
 import ColorCard from "./RoadmapediaSubComponents/ColorCard.jsx";
 
-const initialNodes = [
-  {
-    type: "text",
-    id: 0,
-    width: 150,
-    height: 60,
-    text: [""],
-    x: 100,
-    y: 300,
-    backgroundColor: "white",
-    strokeColor: "black",
-    groupID: null,
-    textSize: 12,
-    textFont: "sans-serif"
-  },
-  {
-    type: "circle",
-    id: 1,
-    width: 150,
-    height: 40,
-    text: [""],
-    x: 300,
-    y: 200,
-    storedInfo: {
-      url: null,
-      info: null,
-      picture: null,
-      title: null
-    },
-    backgroundColor: "white",
-    strokeColor: "black",
-    groupID: null
-  },
-  {
-    type: "circle",
-    id: 2,
-    width: 150,
-    height: 40,
-    text: [""],
-    x: 300,
-    y: 200,
-    storedInfo: {
-      url: null,
-      info: null,
-      picture: null,
-      title: null
-    },
-    backgroundColor: "white",
-    strokeColor: "black",
-    groupID: null
-  }
-];
+const initialNodes = [];
 
-const initialLinks = [
-  { source: initialNodes[0], target: initialNodes[1], linkDistance: 250 }
-];
+const initialLinks = [];
 
 class GraphEditor extends Component {
   constructor(props) {
@@ -685,8 +632,10 @@ class GraphEditor extends Component {
       .style("stroke-width", 3);
 
     circles
-      .merge(d3.selectAll(".node"))
+      .merge(d3.selectAll("circle.node"))
       .attr("stroke", function(d, i) {
+        console.log("HERE", app.selectedNode, d);
+
         if (app.selectedNode && d.id === app.selectedNode.id) {
           return "url(#svgGradient)";
         }
@@ -721,7 +670,7 @@ class GraphEditor extends Component {
           d3.select(this).attr("href", img.src);
         };
         img.src =
-          "https://hosted-besticon.herokuapp.com/icon?url=" +
+          "https://forked-besticon.herokuapp.com/icon?url=" +
           d.storedInfo.url +
           "&size=80..120..200";
 
@@ -790,25 +739,27 @@ class GraphEditor extends Component {
 
     var texts = textContainers.selectAll("text").data(d => d.text);
     texts.exit().remove();
-    texts = texts.enter().append("text").merge(texts)
-    texts
-      .html(function(d, i) {
-        if (!d) {
-          return;
-        }
-        var a = d;
-        while (a.includes(" ")) {
-          a = a.replace(" ", "&nbsp;");
-        }
-        return a;
-      })
+    texts = texts
+      .enter()
+      .append("text")
+      .merge(texts);
+    texts.html(function(d, i) {
+      if (!d) {
+        return;
+      }
+      var a = d;
+      while (a.includes(" ")) {
+        a = a.replace(" ", "&nbsp;");
+      }
+      return a;
+    });
 
     textContainers.each(function(d, i) {
-console.log(d.textSize, d3.select(this).selectAll("text"))
+      console.log(d.textSize, d3.select(this).selectAll("text"));
       d3.select(this)
         .selectAll("text")
-        .style("font-size",d.textSize)
-        .attr("y", (_, i) => d.textSize * i + (d.textSize - 12))
+        .style("font-size", d.textSize)
+        .attr("y", (_, i) => d.textSize * i + (d.textSize - 12));
 
       var eachTextHeight = d3
         .select(this)
@@ -827,10 +778,10 @@ console.log(d.textSize, d3.select(this).selectAll("text"))
       });
       d.width = Math.max(...widthArray) + 50;
       d.height = d.text.length * eachTextHeight + 25;
-
     });
 
-    rect.merge(d3.selectAll("rect.node"))
+    rect
+      .merge(d3.selectAll("rect.node"))
       .attrs({
         class: "node",
         rx: 6,

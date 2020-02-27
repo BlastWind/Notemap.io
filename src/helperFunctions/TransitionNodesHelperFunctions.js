@@ -142,8 +142,7 @@ export function makeTransitionNodeData(length) {
           "https://cdn1.iconfinder.com/data/icons/social-17/48/photos2-512.png"
       },
       {
-        href:
-          "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+        href: "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
       }
     );
   }

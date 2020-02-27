@@ -26,11 +26,10 @@ export function nodeMouseDown(d, i, DOMEle, app) {
         app.optionGroup.attr("visibility", "hidden");
       });
   app.mousedownNode = d;
-  console.log("new mousedownNode", app.mousedownNode, app);
 }
 
 export function nodeMouseUp(d, i, DOMEle, app) {
-  console.log(app.mousedownNode, app);
+  console.log("mouse down node in mouseup", app.mousedownNode, app);
   console.log("node mouse up");
   if (app.state.preview) {
     //setError("Can't edit during Preview Mode", 2000);
@@ -77,13 +76,11 @@ export function nodeMouseUp(d, i, DOMEle, app) {
 }
 
 export function circleNodeClick(d, iClicked, DOMEle, app) {
-console.log(app.state)
   if (app.isTransitioning) {
     return;
   }
 
   if (app.state.preview) {
-    //console.log({ d }, app.selectedNode);
     if (app.selectedNode && d.id === app.selectedNode.id) {
       app.selectedNode = null;
       app.restart();
@@ -101,6 +98,7 @@ console.log(app.state)
   app.selectedLink = null;
   var selectedNode = app.selectedNode;
   app.forceUpdate();
+
   if (sameCircleClicked() && isTransitionCircleShowing()) {
     if (app.lastClickedNode) {
       console.log({ app });
@@ -297,7 +295,7 @@ console.log(app.state)
               });
               app.transitionGDataset.push({
                 href:
-                  "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+                 "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
               });
             }
           } else if (app.transitionGDataset.length === 4) {
@@ -392,7 +390,7 @@ export function onTransitionNodeClick(dClicked, iClicked, list, DOMEle, app) {
             });
             app.transitionGDataset.push({
               href:
-                "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+               "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
             });
             app.shouldTransitionGsAnimate = true;
             app.shouldTransitionGsEnterAnimation = true;
@@ -405,7 +403,7 @@ export function onTransitionNodeClick(dClicked, iClicked, list, DOMEle, app) {
             });
             app.transitionGDataset.push({
               href:
-                "https://lh3.googleusercontent.com/proxy/i8kuoBF49SDAkOyq_WILZaSblnbe727c_2NCoH7M59AoedUgyIHBz5HiYGVaWFzNWKmLDegSIFBY_Ok8gfp2cEeEJ4i3dE7h6pyVXEPg4tuKJklqdCz6oGjsg78uf87zvX1eI1iP"
+               "https://www.svgimages.com/svg-image/s6/t-alphabet-256x256.png"
             });
 
             app.transitionGs = app.optionG
@@ -612,7 +610,7 @@ export function onTransitionNodeClick(dClicked, iClicked, list, DOMEle, app) {
 
                 img.onerror = function() {};
                 img.src =
-                  "https://hosted-besticon.herokuapp.com/icon?url=" +
+                  "https://forked-besticon.herokuapp.com/icon?url=" +
                   selectedNode.storedInfo.picture +
                   "&size=80..120..200";
 
@@ -732,18 +730,17 @@ export function textNodeClick(d, i, DOMEle, app) {
 }
 
 export function textNodeDblClick(rectData, i, DOMEle, app) {
-
-
   updateStroke(app);
   app.selectedNode = rectData;
+  app.forceUpdate();
   app.mousedownNode = null;
 
-  if(app.state.preview){
-app.setError("Can't edit during preview mode", 2000)
-return;
-}
+  if (app.state.preview) {
+    app.setError("Can't edit during preview mode", 2000);
+    return;
+  }
   app.isTyping = true;
-  app.isTyping = true;
+  app.svg.on(".zoom", null);
   app.startText = rectData.text;
 
   app.nodes.map(eachNode => {
@@ -773,7 +770,16 @@ return;
     .style("display", "block");
 
   paragraph
+    .on("click", () => {
+      console.log("cliekd");
+    })
     .on("blur", function() {
+      var zoom = d3.zoom().on("zoom", function() {
+        app.container.attr("transform", d3.event.transform);
+      });
+
+      app.svg.call(zoom).on("dblclick.zoom", null);
+
       d3.selectAll("foreignObject").remove();
       app.textBox = app.container.append("foreignObject");
       app.resourceForm = app.container
