@@ -11,71 +11,66 @@ import manual from "./svgs/manual.svg";
 
 const colors = d3.scaleOrdinal(d3.schemeCategory10);
 // set up svg for D3
-const initialNodes = [
-  {
-    id: 0,
-    width: 50,
-    height: 40,
-    text: ["here", "", "line 3"],
-    opacity: 1,
-    x: 750,
-    y: 200,
-    fill: d3.rgb(colors(0)),
-    style: ""
-  },
-  {
-    id: 1,
-    width: 50,
-    height: 40,
-    text: ["start"],
-    opacity: 1,
-    x: 600,
-    y: 200,
-    fill: d3.rgb(colors(1)),
-    style: "bold italic highlight"
-  },
-  {
-    id: 2,
-    width: 50,
-    height: 40,
-    text: ["hi"],
-    x: 300,
-    y: 200,
-    fill: d3.rgb(colors(2)),
-    style: "italic"
-  },
-  {
-    id: 3,
-    width: 50,
-    height: 40,
-    text: ["test", "test2"],
-    opacity: 1,
-    x: 600,
-    y: 200,
-    fill: d3.rgb(colors(4)),
-    style: "bold italic highlight"
-  }
-];
-const initialLinks = [
-  {
-    source: initialNodes[1],
-    target: initialNodes[2]
-  },
 
-  {
-    source: initialNodes[2],
-    target: initialNodes[0]
-  }
-];
+const initialTree = {
+  id: 0,
+  text: ["bruh"],
+  nodeWidth: 50,
+  nodeHeight: 30,
+  style: "bold",
+  fill: d3.rgb(colors(0)),
+  opacity: 1,
+  children: [
+    {
+      id: 1,
+      text: ["bruh2"],
+      nodeWidth: 50,
+      nodeHeight: 30,
+      style: "bold",
+      fill: d3.rgb(colors(0)),
+      opacity: 1,
+      children: [
+        {
+          id: 2,
+          text: ["bruh4"],
+          nodeWidth: 50,
+          nodeHeight: 30,
+          style: "bold",
+          fill: d3.rgb(colors(0)),
+          opacity: 1,
+          children: []
+        },
+
+        {
+          id: 3,
+          text: ["bruh5"],
+          nodeWidth: 50,
+          nodeHeight: 30,
+          style: "bold",
+          fill: d3.rgb(colors(0)),
+          opacity: 1,
+          children: []
+        }
+      ]
+    },
+    {
+      id: 4,
+      text: ["bruh3"],
+      nodeWidth: 50,
+      nodeHeight: 30,
+      style: "bold",
+      fill: d3.rgb(colors(0)),
+      opacity: 1,
+      children: []
+    }
+  ]
+};
 
 class GraphEditor extends Component {
   constructor(props) {
     super(props);
-
+    this.tree = initialTree;
     this.state = { showManual: false };
-
-    this.nodes = initialNodes;
-    this.links = initialLinks;
 
     this.selectedNode = null;
     this.selectedLink = null;
@@ -88,12 +83,7 @@ class GraphEditor extends Component {
     this.originalFill = null;
     this.newFill = null;
 
-    this.history = [
-      {
-        nodes: [...initialNodes],
-        links: [...initialLinks]
-      }
-    ];
+    this.history = [initialTree];
     this.txtHistory = [];
     this.historyStep = 0;
     this.previousTransform = null;
@@ -143,20 +133,25 @@ class GraphEditor extends Component {
       "GraphEditorContainer"
     );
 
+    let intialRoot = d3.hierarchy(initialTree);
+    let initialLinks = intialRoot.links();
+    let initalNodes = intialRoot.descendants();
+
     that.force = d3
       .forceSimulation()
       .force(
         "link",
         d3
-          .forceLink()
+          .forceLink(initialLinks)
           .id(d => d.id)
           .distance(function(d) {
+            console.log(d);
             return 250;
           })
       )
-      .force("charge", d3.forceManyBody().strength(-5))
-      //.force("x", d3.forceX())
-      //.force("y", d3.forceY())
+      .force("charge", d3.forceManyBody().strength(-250))
+      .force("x", d3.forceX())
+      .force("y", d3.forceY())
 
       .on("tick", tick);
 
@@ -277,41 +272,44 @@ class GraphEditor extends Component {
       .on("keydown", keydown)
       .on("keyup", keyup)
       .on("resize", resize);
-    restart();
+    restartCall();
 
     function resetMouseVars() {
       that.mousedownNode = null;
       //that.mouseupNode = null;
       that.mousedownLink = null;
     }
+
+    function restartCall() {
+      console.log(that.force.nodes());
+      that.nodeLocation = that.force.nodes();
+      restart();
+    }
     // update force layout (called automatically each iteration)
     function tick() {
       // draw directed edges with proper padding from node centers
+      //console.log("textINputCircle", that.textInputCircle);
 
       path.attr("d", d => {
-        //
-        var dy = d.target.y - d.source.y;
-        var dx = d.target.x - d.source.x;
-        var theta = Math.atan2(-dy, dx);
-        theta += Math.PI;
-        let angle = (theta * Math.PI) / 180;
-        const shiftXBy = 0;
-        return `M${d.source.x + d.source.width / 2},${d.source.y +
-          d.source.height / 2}L${d.target.x + d.target.width / 2},${d.target.y +
-          d.target.height / 2}`;
+        return `M${d.source.x + d.source.data.nodeWidth / 2},${d.source.y +
+          d.source.data.nodeHeight / 2}L${d.target.x +
+          d.target.data.nodeWidth / 2},${d.target.y +
+          d.target.data.nodeHeight / 2}`;
       });
 
       circle.attr("transform", d => {
-        if (that.textInputCircle)
-          if (d.id === that.textInputCircle.id) {
+        if (that.textInputCircle) {
+          if (d.data.id === that.textInputCircle.data.id) {
+            console.log("d", d, "textinputcircle", that.textInputCircle);
             that.textInputCircle.x = d.x;
             that.textInputCircle.y = d.y;
           }
-
+        }
         return `translate(${d.x},${d.y})`;
       });
 
       if (textBox.attr("x")) {
+        console.log("textInputCircle", that.textINputCircle);
         //warning, chance 25 to something else, this is calculated with 50 / 2
         textBox
           .attr("x", that.textInputCircle.x + 25)
@@ -321,14 +319,38 @@ class GraphEditor extends Component {
     // update graph (called when needed)
 
     function restart() {
+      console.log(that.tree);
       // path (link) group
 
       d3.selectAll("rect.node").remove();
       d3.selectAll("text").remove();
       d3.selectAll("g.textContainer").remove();
+
+      const newRoot = d3.hierarchy(that.tree);
+      const newLinks = newRoot.links();
+      let newNodes = newRoot.descendants();
+
+      console.log(that.nodeLocation, newNodes);
+      if (that.nodeLocation.length !== 0)
+        for (var i = 0; i < that.nodeLocation.length; i++) {
+          newNodes.map(eachNode => {
+            if (eachNode.data.id === that.nodeLocation[i].data.id) {
+              eachNode.x = that.nodeLocation[i].x;
+              eachNode.y = that.nodeLocation[i].y;
+            }
+          });
+        }
+
+      that.force
+        .nodes(newNodes)
+        .force("link")
+        .links(newLinks);
       //
+
+      console.log("new nodes", newNodes);
+
       //JOIN DATA
-      path = path.data(that.links);
+      path = path.data(newLinks);
 
       // update existing that.links
       path
@@ -355,13 +377,13 @@ class GraphEditor extends Component {
               ? null
               : that.mousedownLink;
           that.selectedNode = null;
-          restart();
+          restartCall();
         })
         .merge(path);
 
       // bind data
       // svg => g => g => {circle, text}
-      let g = circle.data(that.nodes, d => d.id);
+      let g = circle.data(newNodes, d => d.id);
       g.exit().remove();
       g = g
         .enter()
@@ -388,9 +410,11 @@ class GraphEditor extends Component {
 
           rect.style("fill", function(d) {
             if (d === that.selectedNode) {
-              return d.fill.brighter().toString();
+              return "white";
+              return d.data.fill.brighter().toString();
             } else {
-              return d.fill;
+              return "white";
+              return d.data.fill;
             }
           });
 
@@ -439,26 +463,27 @@ class GraphEditor extends Component {
           that.mousedownNode = null;
           console.log("mouseup node in mouseup()", that.mouseupNode);
 
-          restart();
+          restartCall();
         });
 
       textContainers
 
-        .attr("opacity", d => d.opacity)
+        .attr("opacity", d => d.data.opacity)
         //.attr("text-anchor", "middle")
+
         .attr("dy", function(d) {
-          var nwords = d.text.length;
+          var nwords = d.data.text.length;
           return "-" + (nwords - 1) * 12;
         })
         .each(function(d, ind) {
           //after appending the tspan elements
           //we get access to widthArray
-          var nwords = d.text.length;
+          var nwords = d.data.text.length;
           for (var i = 0; i < nwords; i++) {
             var rectAndTextPair = d3.select(this).append("g");
             if (
-              d.style.includes("highlight") &&
-              d.text[i].trim().length !== 0
+              d.data.style.includes("highlight") &&
+              d.data.text[i].trim().length !== 0
             ) {
               rectAndTextPair.append("rect").attrs({
                 width: 10,
@@ -470,13 +495,13 @@ class GraphEditor extends Component {
             var tspan = rectAndTextPair
               .append("text")
               .style("font-style", function(d) {
-                if (d.style.includes("italic")) return "italic";
+                if (d.data.style.includes("italic")) return "italic";
               })
               .style("font-weight", function(d) {
-                if (d.style.includes("bold")) return "bold";
+                if (d.data.style.includes("bold")) return "bold";
               })
               .html(function(d) {
-                var a = d.text[i];
+                var a = d.data.text[i];
                 while (a.includes(" ")) {
                   a = a.replace(" ", "&nbsp;");
                 }
@@ -496,11 +521,6 @@ class GraphEditor extends Component {
               if (highlightRect) {
                 highlightRect.attr("width", bboxWidth);
               }
-
-              that.textInputCircle = {
-                ...that.textInputCircle,
-                goodX: (d.width - bboxWidth) / 2
-              };
             });
 
             if (i > 0) tspan.attr("y", 15 * i);
@@ -521,9 +541,9 @@ class GraphEditor extends Component {
                 .getBBox().width
             );
           });
-          d.width = Math.max(...widthArray) + 50;
+          d.data.nodeWidth = Math.max(...widthArray) + 50;
 
-          d.height = d.text.length * eachTextHeight + 25;
+          d.data.nodeHeight = d.data.text.length * eachTextHeight + 25;
 
           //
         })
@@ -538,7 +558,7 @@ class GraphEditor extends Component {
             .node()
             .getBBox().height;
           var toShiftX = 25;
-          var toShiftY = (d.height - bboxHeight) / 2 + 12.5;
+          var toShiftY = (d.data.nodeHeight - bboxHeight) / 2 + 12.5;
           return "translate(" + toShiftX + "px, " + toShiftY + "px)";
         });
 
@@ -547,13 +567,14 @@ class GraphEditor extends Component {
         .attr("rx", 6)
         .attr("ry", 6)
         .attrs({
-          width: d => d.width,
-          height: d => d.height
+          width: d => d.data.nodeWidth,
+          height: d => d.data.nodeHeight
         })
         .style("fill", function(d) {
+          return "white";
           if (d === that.selectedNode) {
-            return d.fill.brighter().toString();
-          } else return d.fill;
+            return d.data.fill.brighter().toString();
+          } else return d.data.fill;
         })
         .style("stroke", "black")
         .on("dblclick", function(d) {
@@ -566,11 +587,18 @@ class GraphEditor extends Component {
 
           svg.on(".zoom", null);
 
-          that.startText = d.text;
-          that.nodes.map(eachNode => {
-            if (eachNode.id === d.id) {
-              eachNode.opacity = 0;
-              restart();
+          that.startText = d.data.text;
+          that.force.nodes().map(eachNode => {
+            console.log("eachnode", eachNode, "d", d);
+            if (eachNode.data.id === d.data.id) {
+              console.log(
+                "muted id",
+                eachNode.data.id,
+                " text: ",
+                eachNode.data.text
+              );
+              eachNode.data.opacity = 0;
+              restartCall();
             }
           });
           that.textInputCircle = d;
@@ -599,7 +627,7 @@ class GraphEditor extends Component {
                 }
                 return initialHTML + "</p>";
               }
-              var textArr = d.text;
+              var textArr = d.data.text;
               var html = textArrToHTML(textArr);
 
               return html;
@@ -625,26 +653,28 @@ class GraphEditor extends Component {
               d3.selectAll("foreignObject").remove();
               textBox = container.append("foreignObject");
 
-              that.nodes.map(eachNode => {
-                if (eachNode.id === that.textInputCircle.id) {
-                  eachNode.opacity = 1;
-                  restart();
+              that.force.nodes().map(eachNode => {
+                if (eachNode.data.id === that.textInputCircle.data.id) {
+                  eachNode.data.opacity = 1;
+                  restartCall();
                 }
               });
 
+              /*
               var oldNodes = that.history[that.historyStep].nodes;
 
               var matchedNode = oldNodes.filter(eachNode => {
                 return eachNode.id === d.id;
               });
+*/
 
               //TODO: if text isn't the same or the node is brand new, store to history
               //on add new node, notNewNode is false
               //on dblclick, blur, notNewNode is true
-              if (that.startText !== d.text) {
+              if (that.startText !== d.data.text) {
                 that.nodeToChange = d;
                 //console.log("starttext");
-                that.storeToHistory();
+                //that.storeToHistory();
               }
 
               that.startText = null;
@@ -662,7 +692,7 @@ class GraphEditor extends Component {
                 this.blur();
               } else {
                 var node = d3.select(this).node();
-                // note, d.text is referring to the d in dblclick, d in g, d in text, from that.nodes
+                // note, d.data.text is referring to the d in dblclick, d in g, d in text, from that.nodes
                 var nodeHTML = d3.select(this).node().innerHTML;
 
                 nodeHTML = nodeHTML.slice(3, nodeHTML.length - 4);
@@ -675,9 +705,9 @@ class GraphEditor extends Component {
                 }
 
                 var textArr = nodeHTML.split("<br>");
-                d.text = textArr;
+                d.data.text = textArr;
 
-                restart();
+                restartCall();
               }
             });
 
@@ -710,9 +740,9 @@ class GraphEditor extends Component {
 
           rect.style("fill", function(d) {
             if (d === that.selectedNode) {
-              return d.fill.brighter().toString();
+              return d.data.fill.brighter().toString();
             } else {
-              return d.fill;
+              return d.data.fill;
             }
           });
 
@@ -761,19 +791,12 @@ class GraphEditor extends Component {
           that.mousedownNode = null;
           console.log("mouseup node in mouseup()", that.mouseupNode);
 
-          restart();
+          restartCall();
         });
 
       circle = g.merge(circle);
 
       // set the graph in motion
-      that.force
-        .nodes(that.nodes)
-        .force("link")
-        .links(that.links)
-        .distance(function(d) {
-          return 250;
-        });
 
       that.force.alphaTarget(0.3).restart();
     }
@@ -955,6 +978,40 @@ class GraphEditor extends Component {
       if (!that.selectedNode && !that.selectedLink) return;
 
       switch (d3.event.keyCode) {
+        case 9:
+          if (that.selectedNode) {
+            //get reference to the node,
+            //pappend newNode to thatNode.children
+            const newNode = {
+              text: ["bruh"],
+              nodeWidth: 50,
+              nodeHeight: 30,
+              style: "bold",
+              fill: d3.rgb(colors(0)),
+              opacity: 1,
+              children: []
+            };
+            function findAndUpdate(targetObj, id) {
+              if (targetObj.id === id) {
+                if (targetObj.children) {
+                  targetObj.children.push(newNode);
+                } else {
+                  targetObj.children = [];
+                  targetObj.children.push(newNode);
+                }
+                return;
+              } else {
+                if (targetObj.children)
+                  targetObj.children.forEach(eachNode => {
+                    findAndUpdate(eachNode, id);
+                  });
+              }
+            }
+            console.log(that.tree);
+            findAndUpdate(that.tree, that.selectedNode.data.id);
+            restartCall();
+          }
+          break;
         case 8: // backspace
         case 46: // delete
           if (that.selectedNode) {

@@ -1,5 +1,5 @@
 {
-  "homepage": "http://BlastWind.github.io/Notemap.io",
+  "homepage": "http://BlastWind.github.io/roadmapediaV3",
   "name": "roadmapedia",
   "version": "0.1.0",
   "private": true,
@@ -43,6 +43,6 @@
     ]
   },
   "devDependencies": {
-    "gh-pages": "^2.1.1"
+    "gh-pages": "^2.2.0"
   }
 }
