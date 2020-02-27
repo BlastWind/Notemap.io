@@ -1,0 +1,28 @@
+{
+  "files": {
+    "main.css": "/roadmapediaV3/static/css/main.bc12f2c3.chunk.css",
+    "main.js": "/roadmapediaV3/static/js/main.1fd74b44.chunk.js",
+    "main.js.map": "/roadmapediaV3/static/js/main.1fd74b44.chunk.js.map",
+    "runtime-main.js": "/roadmapediaV3/static/js/runtime-main.99de4e0b.js",
+    "runtime-main.js.map": "/roadmapediaV3/static/js/runtime-main.99de4e0b.js.map",
+    "static/js/2.37d5ceb3.chunk.js": "/roadmapediaV3/static/js/2.37d5ceb3.chunk.js",
+    "static/js/2.37d5ceb3.chunk.js.map": "/roadmapediaV3/static/js/2.37d5ceb3.chunk.js.map",
+    "index.html": "/roadmapediaV3/index.html",
+    "precache-manifest.48a535f89135a1c7829b5cbe16addff4.js": "/roadmapediaV3/precache-manifest.48a535f89135a1c7829b5cbe16addff4.js",
+    "service-worker.js": "/roadmapediaV3/service-worker.js",
+    "static/css/main.bc12f2c3.chunk.css.map": "/roadmapediaV3/static/css/main.bc12f2c3.chunk.css.map",
+    "static/media/check.svg": "/roadmapediaV3/static/media/check.8b4d6e74.svg",
+    "static/media/close.svg": "/roadmapediaV3/static/media/close.db093ba0.svg",
+    "static/media/link.svg": "/roadmapediaV3/static/media/link.aa6bec56.svg",
+    "static/media/manual.svg": "/roadmapediaV3/static/media/manual.49e6e6a0.svg",
+    "static/media/network.svg": "/roadmapediaV3/static/media/network.472c20fc.svg",
+    "static/media/network_purple.svg": "/roadmapediaV3/static/media/network_purple.ab9393b8.svg",
+    "static/media/painting.svg": "/roadmapediaV3/static/media/painting.cb7eeca0.svg",
+    "static/media/painting_purple.svg": "/roadmapediaV3/static/media/painting_purple.d0c2add9.svg",
+    "static/media/preview.svg": "/roadmapediaV3/static/media/preview.3ccd9438.svg",
+    "static/media/preview_purple.svg": "/roadmapediaV3/static/media/preview_purple.5700530b.svg",
+    "static/media/purpleLink.svg": "/roadmapediaV3/static/media/purpleLink.8c2311d5.svg",
+    "static/media/t-alphabet-purple.svg": "/roadmapediaV3/static/media/t-alphabet-purple.243ba647.svg",
+    "static/media/t-alphabet.svg": "/roadmapediaV3/static/media/t-alphabet.525e6ab5.svg"
+  }
+}
